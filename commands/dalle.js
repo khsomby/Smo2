@@ -22,7 +22,7 @@ module.exports = { description,
         const imageUrl = data.data.images[0];
 
         try {
-          const imgPath = `https://genosite-w0aa.onrender.com/convert-webp-to-jpg?imageUrl=${imageUrl}`;
+          const imgPath = `https://simple-messenger-bot-cvg1.onrender.com/jpg?imageUrl=${imageUrl}`;
           
           await sendMessage(senderId, {
             attachment: { type: "image", payload: { url: imgPath, is_reusable: true } }
