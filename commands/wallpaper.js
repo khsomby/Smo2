@@ -28,7 +28,7 @@ module.exports = { description,
           await sendMessage(senderId, {
             attachment: {
               type: "image",
-              payload: { url: `https://genosite-w0aa.onrender.com/convert-webp-to-jpg?imageUrl=${image}`, is_reusable: true }
+              payload: { url: `https://simple-messenger-bot-cvg1-nwr4.onrender.com/jpg?imageUrl=${image}`, is_reusable: true }
             }
           });
         }
