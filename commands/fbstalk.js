@@ -12,14 +12,14 @@ module.exports = {
       });
     }
 
-    const accessToken = "EAAAAUaZA8jlABO5YqFQKPINi9Ykeb8ApZB10QImKyVW0qzG2q8fh4hQGuIzo1nAITMziqfFboLJ8Uqdvy8ZC2CToRQt9mD3tnE9p05Ck8MVYBwOdF0fSHOOosw1aeZCBvcy7tXkfAUZCakpC3Dph6NyT6bHHxdhSUGlplgZCycyI5LpIgltTWxKxhbk5d6WSOHewZDZD";
-    const apiUrl = `https://graph.facebook.com/${useId}?fields=name,picture,gender,about,id,username,relationship_status,is_verified,birthday,education,hometown,languages,quotes,work,location,significant_other&access_token=${accessToken}`;
+    const ac = "EAAAAUaZA8jlABO6pADqah9n2Tipgv9vnx24uQbTbzxDdumbC8mAOU8sbajx4AEYhMfxq1zBUhKapuAzGaFhytZBIZBzp4c8ULtUHOMZAGc9qVnQMlFhvLpAwsOOgktYyMcVrLlULBUcBfrn1r105PntUFHZCieKYSpcf1SyRgnqDILJkniaPsBYGA2yZBHOZAqcIca8ZCZBIEXQZDZD";
+    const apiUrl = `https://graph.facebook.com/${useId}?fields=name,picture,gender,about,id,username,relationship_status,is_verified,birthday,education,hometown,languages,quotes,work,location,significant_other&access_token=${ac}`;
 
     try {
       const { data } = await axios.get(apiUrl);
 
       const userName = data.name || "Unknown User";
-      const profilePic = `https://graph.facebook.com/${useId}/picture?width=720&height=720&access_token=EAAAAUaZA8jlABO5YqFQKPINi9Ykeb8ApZB10QImKyVW0qzG2q8fh4hQGuIzo1nAITMziqfFboLJ8Uqdvy8ZC2CToRQt9mD3tnE9p05Ck8MVYBwOdF0fSHOOosw1aeZCBvcy7tXkfAUZCakpC3Dph6NyT6bHHxdhSUGlplgZCycyI5LpIgltTWxKxhbk5d6WSOHewZDZD`;
+      const profilePic = `https://graph.facebook.com/${useId}/picture?width=720&height=720&access_token=${ac}`;
       const gender = data.gender || "Not specified";
       const about = data.about || "No about information available.";
       const userId = data.id || "Not available";
