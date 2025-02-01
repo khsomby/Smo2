@@ -8,34 +8,16 @@ Example: /dalle cut cat`;
 module.exports = { description, 
   execute: async (prompt, senderId, sendMessage) => {
     if (!prompt) {
-      return sendMessage(senderId, { text: "❌ Please provide a prompt after /bing." });
+      return sendMessage(senderId, { text: "❌ Please provide a prompt after /dalle." });
     }
 
     try {
-      const response = await axios.get(`https://jerome-web.onrender.com/service/api/dalle2-image`, {
-        params: { prompt: prompt }
-      });
-
-      const data = response.data;
-
-      if (data.status === "success" && data.data.status === "completed") {
-        const imageUrl = data.data.images[0];
-
-        try {
-          const aa = `https://convert-smo.vercel.app/convert-webp-to-jpg?imageUrl=`;
-          const imgPath = `${aa}${imageUrl}`;
-          
-          await sendMessage(senderId, {
-            attachment: { type: "image", payload: { url: imgPath, is_reusable: true } }
+      const response = `https://kaiz-apis.gleeze.com/api/imagine?prompt=${prompt}`;
+      
+      await sendMessage(senderId, {
+            attachment: { type: "image", payload: { url: response, is_reusable: true } }
           });
-          
-        } catch (error) {
-          console.error("Error:", error.message);
-          sendMessage(senderId, { text: "❌ Error." });
-        }
-      } else {
-        sendMessage(senderId, { text: "❌ Failed to generate image." });
-      }
+        
     } catch (error) {
       console.error("Error generating image:", error.message);
       sendMessage(senderId, { text: "❌ Error generating image." });
