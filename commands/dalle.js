@@ -22,7 +22,7 @@ module.exports = { description,
         const imageUrl = data.data.images[0];
 
         try {
-          const aa = `https://genosite-w0aa.onrender.com/convert-webp-to-jpg?imageUrl=`;
+          const aa = `https://convert-smo.vercel.app/convert-webp-to-jpg?imageUrl=`;
           const imgPath = `${aa}${imageUrl}`;
           
           await sendMessage(senderId, {
