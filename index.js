@@ -11,7 +11,7 @@ const PAGE_ACCESS_TOKEN = process.env.token;
 
 const chatGpt = async (text, senderId) => {
   try {
-    const response = await axios.get(`https://kaiz-apis.gleeze.com/api/gemini-pro?q=${encodeURIComponent(text)}&uid=${senderId}`);
+    const response = await axios.get(`https://kaiz-apis.gleeze.com/api/deepseek-r1?ask=${encodeURIComponent(text)}&uid=${senderId}`);
 
     const reply = response.data.response;
 
