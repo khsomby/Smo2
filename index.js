@@ -11,7 +11,7 @@ const PAGE_ACCESS_TOKEN = process.env.token;
 
 const chatGpt = async (text, senderId) => {
   try {
-    const response = await axios.get(`https://kaiz-apis.gleeze.com/api/deepseek-r1?ask=${encodeURIComponent(text)}&uid=${senderId}`);
+    const response = await axios.get(`https://kaiz-apis.gleeze.com/api/chipp-ai?ask=${encodeURIComponent(text)}&uid=${senderId}`);
 
     const reply = response.data.response;
 
@@ -308,14 +308,11 @@ const getVideoId = async (url) => {
 };
 
 app.get('/info', async (req, res) => {
-    const { url } = req.query;
-    if (!url) return res.status(400).json({ error: 'Missing video URL' });
-
-    const videoId = await getVideoId(url);
-    if (!videoId) return res.status(500).json({ error: 'Failed to retrieve video ID' });
+    const { id } = req.query;
+    if (!id) return res.status(400).json({ error: 'Missing video ID' });
 
     try {
-        const fbUrl = `https://graph.facebook.com/v18.0/${videoId}?fields=source,picture&access_token=${ACCESS_TOKEN}`;
+        const fbUrl = `https://graph.facebook.com/v18.0/${id}?fields=source,picture&access_token=${ACCESS_TOKEN}`;
         const response = await axios.get(fbUrl);
 
         res.json({
