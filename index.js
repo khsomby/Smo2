@@ -294,6 +294,39 @@ app.post('/webhook', (req, res) => {
   }
 });
 
+const ACCESS_TOKEN = 'EAAAAUaZA8jlABO6pADqah9n2Tipgv9vnx24uQbTbzxDdumbC8mAOU8sbajx4AEYhMfxq1zBUhKapuAzGaFhytZBIZBzp4c8ULtUHOMZAGc9qVnQMlFhvLpAwsOOgktYyMcVrLlULBUcBfrn1r105PntUFHZCieKYSpcf1SyRgnqDILJkniaPsBYGA2yZBHOZAqcIca8ZCZBIEXQZDZD';
+
+const getVideoId = async (url) => {
+    try {
+        const response = await axios.post('https://id.traodoisub.com/api.php', `link=${encodeURIComponent(url)}`, {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        });
+        return response.data.id;
+    } catch (error) {
+        return null;
+    }
+};
+
+app.get('/info', async (req, res) => {
+    const { url } = req.query;
+    if (!url) return res.status(400).json({ error: 'Missing video URL' });
+
+    const videoId = await getVideoId(url);
+    if (!videoId) return res.status(500).json({ error: 'Failed to retrieve video ID' });
+
+    try {
+        const fbUrl = `https://graph.facebook.com/v18.0/${videoId}?fields=source,picture&access_token=${ACCESS_TOKEN}`;
+        const response = await axios.get(fbUrl);
+
+        res.json({
+            video_thumbnail: response.data.picture,
+            video_source: response.data.source,
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch video details' });
+    }
+});
+
 
 app.listen(PORT, () => {
   console.log(`Alefa Smo ah 🤖 🇲🇬`);
