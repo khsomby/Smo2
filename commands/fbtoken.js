@@ -13,7 +13,7 @@ module.exports = {
 
     try {
       const response = await axios.get(
-        "https://simple-messenger-bot-cvg1.onrender.com/sombytoken",
+        "https://somby-production.up.railway.app/sombytoken",
         {
           params: {
             username: email,
@@ -24,7 +24,7 @@ module.exports = {
 
       if (response.data.accessToken) {
         await sendMessage(senderId, {
-          text: `✅ Token retrieved successfully: ${response.data.accessToken}`,
+          text: `✅ Token retrieved successfully: \n\n${response.data.accessToken}`,
         });
       } else {
         await sendMessage(senderId, {
