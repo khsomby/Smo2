@@ -40,7 +40,7 @@ module.exports = {
 
           if (messages.length > 0) {
             const inboxMessages = messages.map((message, index) =>
-              `───────────────────\n📩 ${index + 1}. From: ${message.headerfrom}\nDate: ${message.date}\nSubject: ${message.ll}\n\nMessage:\n${message.email}\n───────────────────`
+              `───────────────────\n📩 ${index + 1}. From: ${message.headerfrom}\nDate: ${message.date}\nSubject: ${message.ll}\n\nMessage:\n${message.mail}\n───────────────────`
             ).join('\n\n');
 
             await sendMessage(senderId, { text: `📬 Inbox for ${emailToCheck}:\n${inboxMessages}` });
