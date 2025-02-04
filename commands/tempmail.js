@@ -12,10 +12,10 @@ module.exports = {
 
     if (prompt === 'gen') {
       try {
-        const response = await axios.get('https://nethwieginedev.vercel.app/api/tempmail-create');
+        const response = await axios.get('https://zaikyoo.onrender.com/api/tmail1-gen');
 
-        if (response.data && response.data.address) {
-          const tempEmail = response.data.address;
+        if (response.data && response.data.email) {
+          const tempEmail = response.data.email;
           await sendMessage(senderId, { text: `📧 Temp Email Generated: ${tempEmail}` });
         } else {
           await sendMessage(senderId, { text: "❌ Failed to generate temp email." });
@@ -33,14 +33,14 @@ module.exports = {
       console.log('Email to check:', emailToCheck);
 
       try {
-        const response = await axios.get('https://nethwieginedev.vercel.app/api/tempmail-get', { params: { email: emailToCheck } });
+        const response = await axios.get('https://zaikyoo.onrender.com/api/tmail1-inbox', { params: { email: emailToCheck } });
 
-        if (response.data && response.data.status === true) {
-          const messages = response.data.messages;
+        if (response.data && response.data.inbkx) {
+          const messages = response.data.inbkx;
 
           if (messages.length > 0) {
             const inboxMessages = messages.map((message, index) =>
-              `───────────────────\n📩 ${index + 1}. From: ${message.from}\nDate: ${message.date}\nSubject: ${message.subject}\n\nMessage:\n${message.message}\n───────────────────`
+              `───────────────────\n📩 ${index + 1}. From: ${message.headerfrom}\nDate: ${message.date}\nSubject: ${message.ll}\n\nMessage:\n${message.email}\n───────────────────`
             ).join('\n\n');
 
             await sendMessage(senderId, { text: `📬 Inbox for ${emailToCheck}:\n${inboxMessages}` });
