@@ -11,9 +11,9 @@ const PAGE_ACCESS_TOKEN = process.env.token;
 
 const chatGpt = async (text, senderId) => {
   try {
-    const response = await axios.get(`https://kaiz-apis.gleeze.com/api/pixtral-12b?q=${encodeURIComponent(text)}&uid=${senderId}`);
+    const response = await axios.get(`https://zaikyoo.onrender.com/api/deepseekr1?prompt=${encodeURIComponent(text)}&uid=${senderId}`);
 
-    const reply = response.data.response;
+    const reply = response.data.reply;
 
     return reply;
   } catch (err) {
