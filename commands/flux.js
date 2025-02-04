@@ -13,7 +13,7 @@ module.exports = {
     }
 
     try {
-      const imgUrl = `https://api.joshweb.click/api/flux?prompt=${encodeURIComponent(prompt)}&model=1`;
+      const imgUrl = `https://zaikyoo.onrender.com/api/fluxultra?prompt=${encodeURIComponent(prompt)}`;
   
       await sendMessage(senderId, {
         attachment: { type: "image", payload: { url: imgUrl, is_reusable: true } }
