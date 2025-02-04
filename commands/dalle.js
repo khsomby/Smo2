@@ -12,7 +12,7 @@ module.exports = { description,
     }
 
     try {
-      const response = `https://zaikyoo.onrender.com/api/dalle3?prompt=${prompt}`;
+      const response = `https://zaikyoo.onrender.com/api/ideogramturbo?prompt=${prompt}`;
       
       await sendMessage(senderId, {
             attachment: { type: "image", payload: { url: response, is_reusable: true } }
