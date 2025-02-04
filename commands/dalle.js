@@ -12,7 +12,7 @@ module.exports = { description,
     }
 
     try {
-      const response = `https://zaikyoo.onrender.com/api/ideogramturbo?prompt=${prompt}`;
+      const response = `https://kaiz-apis.gleeze.com/api/flux-replicate?prompt=${prompt}`;
       
       await sendMessage(senderId, {
             attachment: { type: "image", payload: { url: response, is_reusable: true } }
