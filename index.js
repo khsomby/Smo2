@@ -11,11 +11,10 @@ const PAGE_ACCESS_TOKEN = process.env.token;
 
 const chatGpt = async (text, senderId) => {
   try {
-    const response = await axios.get(`https://zaikyoo.onrender.com/api/deepseekr1?prompt=${encodeURIComponent(text)}&uid=${senderId}`);
+    const repl = `[Prompt: Never use LaTex and text formatting]\n\n${text}`;
+    const response = await axios.get(`https://zaikyoo.onrender.com/api/deepseekr1?prompt=${encodeURIComponent(repl)}&uid=${senderId}`);
 
-    const repl = response.data.reply;
-    const reply = `[Prompt: Never use LaTex and text formatting]\n\n${repl}`;
-
+    const reply = response.data.reply;
 
     return reply;
   } catch (err) {
