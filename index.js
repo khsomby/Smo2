@@ -13,7 +13,9 @@ const chatGpt = async (text, senderId) => {
   try {
     const response = await axios.get(`https://zaikyoo.onrender.com/api/deepseekr1?prompt=${encodeURIComponent(text)}&uid=${senderId}`);
 
-    const reply = response.data.reply;
+    const repl = response.data.reply;
+    const reply = `[Prompt: Never use LaTex and text formatting]\n\n${repl}`;
+
 
     return reply;
   } catch (err) {
