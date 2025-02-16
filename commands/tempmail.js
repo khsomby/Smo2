@@ -44,7 +44,7 @@ module.exports = {
               `───────────────────\n📩 ${index + 1}\nTo: ${message.to}\nFrom: ${message.from}\nSubject: ${message.subject}\n\nMessage:\n${message.body.trim()}\n───────────────────`
             ).join('\n\n');
 
-            await sendMessage(senderId, { text: `📬 Inbox for ${messages[0].to}:\n${inboxMessages}` });
+            await sendMessage(senderId, { text: `📬 Inbox:\n${inboxMessages}` });
           } else {
             await sendMessage(senderId, { text: `📭 Inbox is empty.` });
           }
