@@ -14,7 +14,7 @@ module.exports = {
       try {
         const response = await axios.get('https://kaiz-apis.gleeze.com/api/tempmail-create');
 
-        if (response.data && response.data.email) {
+        if (response.data && response.data.address) {
           const tempEmail = response.data.address;
           await sendMessage(senderId, { text: `📧 Temp Email Generated: ${tempEmail}\n\nYour token is below. Use it to check inbox: /tempmail <your_token>` });
           sendMessage(senderId, { text: response.data.token });
