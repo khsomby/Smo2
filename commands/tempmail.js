@@ -12,11 +12,12 @@ module.exports = {
 
     if (prompt === 'gen') {
       try {
-        const response = await axios.get('https://zaikyoo.onrender.com/api/tmail1-gen');
+        const response = await axios.get('https://kaiz-apis.gleeze.com/api/tempmail-create');
 
         if (response.data && response.data.email) {
-          const tempEmail = response.data.email;
-          await sendMessage(senderId, { text: `📧 Temp Email Generated: ${tempEmail}` });
+          const tempEmail = response.data.address;
+          await sendMessage(senderId, { text: `📧 Temp Email Generated: ${tempEmail}\n\nYour token is below. Use it to check inbox: /tempmail <your_token>` });
+          sendMessage(senderId, { text: response.data.token });
         } else {
           await sendMessage(senderId, { text: "❌ Failed to generate temp email." });
         }
@@ -26,26 +27,26 @@ module.exports = {
       }
     } else {
       if (!prompt) {
-        return sendMessage(senderId, { text: "❌ Please provide an email to check after /tempmail <email>." });
+        return sendMessage(senderId, { text: "❌ Please provide a token to check after /tempmail." });
       }
 
       const emailToCheck = prompt;
       console.log('Email to check:', emailToCheck);
 
       try {
-        const response = await axios.get('https://zaikyoo.onrender.com/api/tmail1-inbox', { params: { email: emailToCheck } });
+        const response = await axios.get('https://kaiz-apis.gleeze.com/api/tempmail-inbox', { params: { token: emailToCheck } });
 
-        if (response.data && response.data.inbkx) {
-          const messages = response.data.inbkx;
+        if (response.data && response.data.emails) {
+          const messages = response.data.emails;
 
           if (messages.length > 0) {
             const inboxMessages = messages.map((message, index) =>
-              `───────────────────\n📩 ${index + 1}. From: ${message.headerfrom}\nDate: ${message.date}\nSubject: ${message.ll}\n\nMessage:\n${message.mail}\n───────────────────`
+              `───────────────────\n📩 ${index + 1}. From: ${message.from}\nSubject: ${message.subject}\n\nMessage:\n${message.body}\n───────────────────`
             ).join('\n\n');
 
-            await sendMessage(senderId, { text: `📬 Inbox for ${emailToCheck}:\n${inboxMessages}` });
+            await sendMessage(senderId, { text: `📬 Inbox for ${message.to}:\n${inboxMessages}` });
           } else {
-            await sendMessage(senderId, { text: `📭 Inbox for ${emailToCheck} is empty.` });
+            await sendMessage(senderId, { text: `📭 Inbox is empty.` });
           }
         } else {
           await sendMessage(senderId, { text: "❌ Failed to fetch inbox messages." });
