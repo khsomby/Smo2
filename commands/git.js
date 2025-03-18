@@ -26,8 +26,8 @@ module.exports = {
       return sendMessage(senderId, { text: "❌ Both filename and file content must be provided." });
     }
 
-    const repoOwner = "somby-ny-aina"; // Replace with your GitHub username
-    const repoName = "Simple-Messenger-Bot"; // Replace with your GitHub repository name
+    const repoOwner = "khsomby"; // Replace with your GitHub username
+    const repoName = "Smo2"; // Replace with your GitHub repository name
     const branch = "main";
 
     try {
