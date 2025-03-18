@@ -8,11 +8,11 @@ module.exports = { description,
     if (!prompt) return sendMessage(senderId, { text: "❌ Please provide a prompt after /lyrics." });
 
     try {
-      const response = await axios.get(`https://lyrist.vercel.app/api/${encodeURIComponent(prompt)}`);
-      const { artist, title, lyrics, image } = response.data;
+      const response = await axios.get(`https://betadash-api-swordslush-production.up.railway.app/lyrics-finder?title=${encodeURIComponent(prompt)}`);
+      const { Title, response, Thumbnail } = response.data;
 
-      await sendMessage(senderId, { attachment: { type: "image", payload: { url: image, is_reusable: true } } });
-      sendMessage(senderId, { text: `𝗧𝗶𝘁𝗹𝗲: ${title}\n𝗔𝗿𝘁𝗶𝘀𝘁: ${artist}\n\n𝗟𝘆𝗿𝗶𝗰𝘀:\n${lyrics}` });
+      await sendMessage(senderId, { attachment: { type: "image", payload: { url: Thumbnail, is_reusable: true } } });
+      sendMessage(senderId, { text: `𝗧𝗶𝘁𝗹𝗲: ${Title}\n\n${response}` });
     } catch (error) {
       console.error("Lyrics error:", error.message);
       sendMessage(senderId, { text: "❌ Error retrieving lyrics." });
