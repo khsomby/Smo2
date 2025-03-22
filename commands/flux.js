@@ -13,7 +13,7 @@ module.exports = {
     }
 
     try {
-      const imgUrl = `https://zaikyoo.onrender.com/api/fluxultra?prompt=${encodeURIComponent(prompt)}`;
+      const imgUrl = `https://betadash-api-swordslush-production.up.railway.app/fluxwebui?prompt=${encodeURIComponent(prompt)}`;
   
       await sendMessage(senderId, {
         attachment: { type: "image", payload: { url: imgUrl, is_reusable: true } }
