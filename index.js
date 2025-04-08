@@ -12,9 +12,9 @@ const PAGE_ACCESS_TOKEN = process.env.token;
 const chatGpt = async (text, senderId) => {
   try {
     const repl = `[Prompt: Never use LaTex for formatting formules]\n\n${text}`;
-    const response = await axios.get(`https://kaiz-apis.gleeze.com/api/pixtral-12b?q=${encodeURIComponent(repl)}&uid=${senderId}`);
+    const response = await axios.get(`https://api.zetsu.xyz/api/chatgpt-4o-latest?uid=${senderId}&prompt=${encodeURIComponent(repl)}`);
 
-    const reply = response.data.content;
+    const reply = response.data.response;
 
     return reply;
   } catch (err) {
