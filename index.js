@@ -12,7 +12,7 @@ const PAGE_ACCESS_TOKEN = process.env.token;
 const chatGpt = async (text, senderId) => {
   try {
     const repl = `[Prompt: Never use LaTex for formatting formules]\n\n${text}`;
-    const response = await axios.get(`https://api.zetsu.xyz/api/chatgpt-4o-latest?uid=${senderId}&prompt=${encodeURIComponent(repl)}`);
+    const response = await axios.get(`https://api.zetsu.xyz/api/chatgpt-4o-latest?uid=${senderId}&prompt=${encodeURIComponent(repl)}&apikey=88802b996b598bd8bd315ea68a743ed1`);
 
     const reply = response.data.response;
 
@@ -140,7 +140,7 @@ const describeImage = async (imageUrl, prompt, senderId) => {
       });
 
     } else if (prompt.toLowerCase() === "enhance") {
-      const gUrl = `https://api.zetsu.xyz/tools/restore?url=${encodeURIComponent(imageUrl)}`;
+      const gUrl = `https://api.zetsu.xyz/tools/restore?url=${encodeURIComponent(imageUrl)}&apikey=88802b996b598bd8bd315ea68a743ed1`;
       
       await sendMessage(senderId, {
         attachment: {
