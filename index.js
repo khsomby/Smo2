@@ -139,6 +139,16 @@ const describeImage = async (imageUrl, prompt, senderId) => {
         }
       });
 
+    } else if (prompt.toLowerCase() === "ghibli") {
+      const gUrl = `https://betadash-api-swordslush-production.up.railway.app/ghibli?imageUrl=${encodeURIComponent(imageUrl)}&prompt=transform+into+ghibli+art`;
+      
+      await sendMessage(senderId, {
+        attachment: {
+          type: "image",
+          payload: { url: gUrl, is_reusable: true }
+        }
+      });
+
     } else if (prompt.toLowerCase() === "removebg") {
       const removeBgUrl = `https://kaiz-apis.gleeze.com/api/removebg?url=${encodeURIComponent(imageUrl)}`;
       
