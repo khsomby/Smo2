@@ -139,8 +139,8 @@ const describeImage = async (imageUrl, prompt, senderId) => {
         }
       });
 
-    } else if (prompt.toLowerCase() === "ghibli") {
-      const gUrl = `https://betadash-api-swordslush-production.up.railway.app/ghibli?imageUrl=${encodeURIComponent(imageUrl)}&prompt=transform+into+ghibli+art`;
+    } else if (prompt.toLowerCase() === "enhance") {
+      const gUrl = `https://api.zetsu.xyz/tools/restore?url=${encodeURIComponent(imageUrl)}`;
       
       await sendMessage(senderId, {
         attachment: {
@@ -245,7 +245,7 @@ const handleImage = async (event) => {
   if (attachments && attachments[0].type === "image") {
     const imageUrl = attachments[0].payload.url;
     pendingImageDescriptions[senderID] = imageUrl;
-    await sendMessage(senderID, { text: "📷 Image received! Now send 'removebg' - 'zombie' - 'zombie2' - 'vampire' or 'xmas' or other prompt." });
+    await sendMessage(senderID, { text: "📷 Image received! Now send 'removebg' - 'zombie' - 'zombie2' - 'vampire' - 'enhance' or 'xmas' or other prompt." });
   }
 };
 
