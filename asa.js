@@ -32,7 +32,7 @@ async function initializePageData() {
         pageInfo.id = pageResponse.data.id;
 
         const adminsResponse = await axios.get(`https://graph.facebook.com/${API_VERSION}/${pageInfo.id}/roles`, {
-            params: { access_token: PAGE_ACCESS_TOKE }
+            params: { access_token: PAGE_ACCESS_TOKEN }
         });
         pageInfo.admins = adminsResponse.data.data
             .filter(user => user.role === 'ADMIN')
