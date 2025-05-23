@@ -9,7 +9,7 @@ app.use(bodyParser.json());
 // Configuration
 const T1_ACCESS_TOKEN = process.env.T1; // For feed/comments
 const T2_ACCESS_TOKEN = process.env.T2; // For messaging
-const VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN;
+const VERIFY_TOKEN = "somby";
 const API_VERSION = 'v18.0';
 
 // Hardcoded admin IDs (replace these)
