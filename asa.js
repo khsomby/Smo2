@@ -64,7 +64,6 @@ async function processEntry(entry) {
 /* POST HANDLING  */
 /* ============== */
 
-// Fetch recent posts (T1)
 async function fetchRecentPosts() {
     try {
         const response = await axios.get(`https://graph.facebook.com/${API_VERSION}/me/posts`, {
@@ -81,7 +80,6 @@ async function fetchRecentPosts() {
     }
 }
 
-// Show post selection (T2)
 async function showPostSelection(userId) {
     const posts = await fetchRecentPosts();
     if (posts.length === 0) {
@@ -109,13 +107,15 @@ async function showPostSelection(userId) {
 /* CONFIGURATION FLOW */
 /* ================== */
 
-// Handle quick replies
 async function handleQuickReply(userId, payload) {
     if (payload === "ADD_AUTO_REPLY") {
         await showPostSelection(userId);
     } 
     else if (payload === "STOP_AUTO_REPLY") {
         await showActiveConfigurations(userId, true);
+    }
+    else if (payload === "LIST_CONFIGS") {
+        await showActiveConfigurations(userId, false);
     }
     else if (payload.startsWith("SELECT_POST|")) {
         const postId = payload.split("|")[1];
@@ -125,13 +125,27 @@ async function handleQuickReply(userId, payload) {
         };
         await askForKeywords(userId);
     }
+    else if (payload === "EMPTY_KEYWORDS") {
+        userSessions[userId].keywords = [];
+        userSessions[userId].step = 'awaiting_comment_reply';
+        await askForCommentReply(userId);
+    }
+    else if (payload.startsWith("STOP_CONFIG|")) {
+        const postId = payload.split("|")[1];
+        delete activePosts[postId];
+        await sendMessage(userId, {text: `Auto-reply stopped for post ${postId}`});
+        await showMainMenu(userId);
+    }
     else if (payload === "CANCEL") {
         delete userSessions[userId];
         await showMainMenu(userId);
     }
+    else {
+        // Ignore unknown quick replies
+        console.log(`Unknown quick reply payload: ${payload}`);
+    }
 }
 
-// Configuration steps
 async function askForKeywords(userId) {
     userSessions[userId].step = 'awaiting_keywords';
     await sendMessage(userId, {
@@ -179,18 +193,23 @@ async function handleMessage(event) {
 
     if (!ADMIN_IDS.includes(senderId)) return;
 
-    // Always show menu if not in middle of configuration
+    // Process quick replies immediately
+    if (message?.quick_reply?.payload) {
+        await handleQuickReply(senderId, message.quick_reply.payload);
+        return;
+    }
+
+    // Show menu for any other message when not in session
     if (!userSessions[senderId] && (event.postback?.payload === "GET_STARTED" || message)) {
         await showMainMenu(senderId);
         return;
     }
 
-    if (message?.quick_reply) {
-        await handleQuickReply(senderId, message.quick_reply.payload);
-    } 
-    else if (message?.text) {
+    // Process text messages only during active sessions
+    if (message?.text && userSessions[senderId]) {
         await handleTextMessage(senderId, message.text);
     }
+    // Ignore all other messages (attachments, etc)
 }
 
 async function handleTextMessage(userId, text) {
@@ -212,15 +231,16 @@ async function handleTextMessage(userId, text) {
         case 'awaiting_private_message':
             session.privateMessage = text;
             await confirmConfiguration(userId);
+            session.step = 'awaiting_confirmation';
             break;
 
         case 'awaiting_confirmation':
             if (text.toLowerCase() === 'confirm') {
                 await saveConfiguration(userId);
             } else {
-                delete userSessions[userId];
                 await sendMessage(userId, {text: "Configuration cancelled."});
             }
+            delete userSessions[userId];
             await showMainMenu(userId);
             break;
     }
@@ -237,7 +257,6 @@ async function saveConfiguration(userId) {
         commentReply: session.commentReply,
         privateMessage: session.privateMessage
     };
-    delete userSessions[userId];
     await sendMessage(userId, {text: `Auto-reply configured for post ${session.postId}`});
 }
 
