@@ -21,7 +21,7 @@ const ADMIN_IDS = [
 const activePosts = {}; // {postId: {keywords: [], commentReply: string, privateMessage: string}}
 
 // Setup
-const PORT = process.env.PORT || 3000;
+const PORT = 2008;
 app.listen(PORT, async () => {
     console.log(`Server running on port ${PORT}`);
     await setupGetStartedButton();
