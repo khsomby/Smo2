@@ -6,7 +6,8 @@ const axios = require('axios');
 const app = express();
 app.use(bodyParser.json());
 
-const PAGE_ACCESS_TOKEN = process.env.FB_PAGE_ACCESS_TOKEN;
+const PAGE_ACCESS_TOKEN = process.env.T1;
+const PAGE_ACCESS_TOKE = process.env.T2;
 const VERIFY_TOKEN = "somby";
 const API_VERSION = 'v18.0';
 
@@ -31,7 +32,7 @@ async function initializePageData() {
         pageInfo.id = pageResponse.data.id;
 
         const adminsResponse = await axios.get(`https://graph.facebook.com/${API_VERSION}/${pageInfo.id}/roles`, {
-            params: { access_token: PAGE_ACCESS_TOKEN }
+            params: { access_token: PAGE_ACCESS_TOKE }
         });
         pageInfo.admins = adminsResponse.data.data
             .filter(user => user.role === 'ADMIN')
@@ -388,7 +389,7 @@ async function sendPrivateMessage(userId, message) {
         await axios.post(`https://graph.facebook.com/${API_VERSION}/me/messages`, {
             recipient: {id: userId},
             message: {text: message},
-            access_token: PAGE_ACCESS_TOKEN
+            access_token: PAGE_ACCESS_TOKE
         });
     } catch (error) {
         console.error("Error sending private message:", error.response?.data || error.message);
@@ -400,7 +401,7 @@ async function sendMessage(userId, message) {
         await axios.post(`https://graph.facebook.com/${API_VERSION}/me/messages`, {
             recipient: {id: userId},
             message,
-            access_token: PAGE_ACCESS_TOKEN
+            access_token: PAGE_ACCESS_TOKE
         });
     } catch (error) {
         console.error("Error sending message:", error.response?.data || error.message);
@@ -411,7 +412,7 @@ async function setupGetStartedButton() {
     try {
         await axios.post(`https://graph.facebook.com/${API_VERSION}/me/messenger_profile`, {
             get_started: {payload: "GET_STARTED"}
-        }, {params: {access_token: PAGE_ACCESS_TOKEN}});
+        }, {params: {access_token: PAGE_ACCESS_TOKE}});
     } catch (error) {
         console.error("Error setting get started button:", error.response?.data || error.message);
     }
