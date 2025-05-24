@@ -8,7 +8,7 @@ app.use(bodyParser.json());
 
 // Configuration
 const T1_ACCESS_TOKEN = process.env.T1;
-const T2_ACCESS_TOKEN = process.env.T1;
+const T2_ACCESS_TOKEN = process.env.T2;
 const VERIFY_TOKEN = "somby";
 const API_VERSION = 'v18.0';
 const ADMIN_ID = '6881956545251284';
