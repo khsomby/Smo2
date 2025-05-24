@@ -23,8 +23,26 @@ const userSessions = {}; // Temporary session storage
 const PORT = 2008;
 app.listen(PORT, async () => {
     console.log(`Server running on port ${PORT}`);
+    await setupWebhookSubscription();
     await setupGetStartedButton();
 });
+
+/* ===================== */
+/* WEBHOOK SUBSCRIPTIONS */
+/* ===================== */
+
+async function setupWebhookSubscription() {
+    try {
+        // Subscribe to feed changes (comments)
+        await axios.post(`https://graph.facebook.com/${API_VERSION}/me/subscribed_apps`, {
+            subscribed_fields: ['feed'],
+            access_token: T1_ACCESS_TOKEN
+        });
+        console.log('Successfully subscribed to feed changes');
+    } catch (error) {
+        console.error('Error setting up webhook subscription:', error.response?.data || error.message);
+    }
+}
 
 /* ================== */
 /* CORE FUNCTIONALITY */
@@ -52,9 +70,12 @@ app.post('/webhook', async (req, res) => {
 
 // Process entry
 async function processEntry(entry) {
+    // Handle messaging events
     if (entry.messaging) {
         await handleMessage(entry.messaging[0]);
     }
+    
+    // Handle feed changes (comments)
     if (entry.changes) {
         await Promise.all(entry.changes.map(processChange));
     }
@@ -141,7 +162,6 @@ async function handleQuickReply(userId, payload) {
         await showMainMenu(userId);
     }
     else {
-        // Ignore unknown quick replies
         console.log(`Unknown quick reply payload: ${payload}`);
     }
 }
@@ -181,6 +201,7 @@ async function confirmConfiguration(userId) {
               `Private Message: ${session.privateMessage}\n\n` +
               "Type 'confirm' to save or 'cancel' to abort."
     });
+    session.step = 'awaiting_confirmation';
 }
 
 /* =============== */
@@ -231,7 +252,6 @@ async function handleTextMessage(userId, text) {
         case 'awaiting_private_message':
             session.privateMessage = text;
             await confirmConfiguration(userId);
-            session.step = 'awaiting_confirmation';
             break;
 
         case 'awaiting_confirmation':
@@ -286,7 +306,7 @@ async function showActiveConfigurations(userId, forStopping = false) {
 }
 
 /* ============ */
-/* COMMENTS HANDLING */
+/* FEED HANDLING */
 /* ============ */
 
 async function processChange(change) {
