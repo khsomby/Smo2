@@ -13,7 +13,7 @@ const VERIFY_TOKEN = "somby";
 const API_VERSION = 'v18.0';
 
 // Hardcoded admin IDs
-const ADMIN_IDS = ['8913079132153514'];
+const ADMIN_IDS = ['514793581429992'];
 
 // Data storage
 const activePosts = {}; // {postId: {keywords: [], commentReply: string, privateMessage: string}}
