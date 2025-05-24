@@ -6,7 +6,7 @@ const path = require('path');
 const { gpt } = require("gpti");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 2008;
 const PAGE_ACCESS_TOKEN = process.env.token;
 
 const chatGpt = async (text, senderId) => {
