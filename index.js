@@ -250,7 +250,7 @@ const handleImage = async (event) => {
 };
 
 const handleGetStarted = async (senderId) => {
-  await sendMessage(senderId, { text: "👋 Welcome! I'm here to assist you. Type 'help' to see what I can do.\n\nAdmin: Somby Ny Aina\nLink: facebook.com/100086980630281" });
+  await sendMessage(senderId, { text: "👋 Welcome! I'm here to assist you. Type 'Cmdlist' to see what I can do.\n\nAdmin: Somby Ny Aina\nLink: facebook.com/100086980630281" });
 };
 
 const handleEvent = async (event) => {
