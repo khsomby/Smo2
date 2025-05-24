@@ -117,25 +117,20 @@ async function handleMessage(event) {
     // Handle /start command
     if (message?.text && message.text.toLowerCase().trim() === '/start') {
       await showMainMenu(senderId);
-      return;
     }
 
     // Handle postback from Get Started button
     if (event.postback?.payload === "GET_STARTED") {
       await showMainMenu(senderId);
-      return;
     }
 
     // Handle numeric selections
     if (message?.text && userSessions[senderId]?.awaitingSelection) {
       await handleNumericSelection(senderId, message.text);
-      return;
     }
 
-    // Process text messages during active sessions
     if (message?.text && userSessions[senderId]) {
       await handleTextMessage(senderId, message.text);
-      return;
     }
 
     // Default fallback to main menu
