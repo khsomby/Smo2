@@ -16,361 +16,438 @@ const API_VERSION = 'v18.0';
 const ADMIN_IDS = ['6881956545251284'];
 
 // Data storage
-const activePosts = {}; // {postId: {keywords: [], commentReply: string, privateMessage: string}}
+const activePosts = {}; // {postId: {commentReply: string, privateMessage: string}}
 const userSessions = {}; // Temporary session storage
 
-// Setup
 const PORT = 2008;
-app.listen(PORT, async () => {
-    console.log(`Server running on port ${PORT}`);
-    await setupGetStartedButton();
-});
 
-/* ================== */
-/* CORE FUNCTIONALITY */
-/* ================== */
+/* ===================== */
+/* ADMIN NOTIFICATIONS   */
+/* ===================== */
 
-// Webhook verification
-app.get('/webhook', (req, res) => {
-    if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === VERIFY_TOKEN) {
-        res.status(200).send(req.query['hub.challenge']);
-    } else {
-        res.sendStatus(403);
+async function notifyAdmin(message) {
+  try {
+    for (const adminId of ADMIN_IDS) {
+      await sendMessage(adminId, { text: message });
     }
+  } catch (error) {
+    console.error('Failed to notify admin:', error);
+  }
+}
+
+/* ===================== */
+/* WEBHOOK SUBSCRIPTIONS */
+/* ===================== */
+
+async function setupWebhookSubscription() {
+  try {
+    const current = await axios.get(
+      `https://graph.facebook.com/${API_VERSION}/me/subscribed_apps`,
+      { params: { access_token: T1_ACCESS_TOKEN } }
+    );
+
+    if (!current.data.data?.length || !current.data.data[0].subscribed_fields.includes('feed')) {
+      const response = await axios.post(
+        `https://graph.facebook.com/${API_VERSION}/me/subscribed_apps`,
+        { subscribed_fields: ['feed'] },
+        { params: { access_token: T1_ACCESS_TOKEN } }
+      );
+      await notifyAdmin('🔔 Successfully subscribed to feed changes');
+    } else {
+      await notifyAdmin('ℹ️ Already subscribed to feed changes');
+    }
+  } catch (error) {
+    const errorMsg = `❌ Webhook subscription failed: ${error.response?.data?.error?.message || error.message}`;
+    await notifyAdmin(errorMsg);
+    throw error;
+  }
+}
+
+/* ================== */
+/* WEBHOOK HANDLERS   */
+/* ================== */
+
+app.get('/webhook', (req, res) => {
+  if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === VERIFY_TOKEN) {
+    res.status(200).send(req.query['hub.challenge']);
+  } else {
+    res.sendStatus(403);
+  }
 });
 
-// Webhook handler
 app.post('/webhook', async (req, res) => {
+  try {
     const body = req.body;
     if (body.object === 'page') {
-        await Promise.all(body.entry.map(processEntry));
-        res.status(200).send('EVENT_RECEIVED');
+      await Promise.all(body.entry.map(processEntry));
+      res.status(200).send('EVENT_RECEIVED');
     } else {
-        res.sendStatus(404);
+      res.sendStatus(404);
     }
+  } catch (error) {
+    await notifyAdmin(`🛑 Webhook processing failed: ${error.message}`);
+    res.status(500).send('ERROR_PROCESSING');
+  }
 });
 
-// Process entry
 async function processEntry(entry) {
+  try {
     if (entry.messaging) {
-        await handleMessage(entry.messaging[0]);
+      await handleMessage(entry.messaging[0]);
     }
     if (entry.changes) {
-        await Promise.all(entry.changes.map(processChange));
+      await Promise.all(entry.changes.map(processChange));
     }
+  } catch (error) {
+    await notifyAdmin(`🛑 Error processing entry: ${error.message}`);
+  }
 }
 
-/* ============== */
-/* POST HANDLING  */
-/* ============== */
+/* ================== */
+/* MESSAGE HANDLING   */
+/* ================== */
 
-async function fetchRecentPosts() {
-    try {
-        const response = await axios.get(`https://graph.facebook.com/${API_VERSION}/me/posts`, {
-            params: {
-                access_token: T1_ACCESS_TOKEN,
-                fields: 'id,message,created_time',
-                limit: 10
-            }
-        });
-        return response.data.data;
-    } catch (error) {
-        console.error("Error fetching posts:", error.response?.data);
-        return [];
+async function handleMessage(event) {
+  const senderId = event.sender.id;
+  const message = event.message;
+
+  if (!ADMIN_IDS.includes(senderId)) return;
+
+  try {
+    // Handle /start command
+    if (message?.text && message.text.toLowerCase().trim() === '/start') {
+      await showMainMenu(senderId);
+      return;
     }
+
+    // Handle postback from Get Started button
+    if (event.postback?.payload === "GET_STARTED") {
+      await showMainMenu(senderId);
+      return;
+    }
+
+    // Handle numeric selections
+    if (message?.text && userSessions[senderId]?.awaitingSelection) {
+      await handleNumericSelection(senderId, message.text);
+      return;
+    }
+
+    // Process text messages during active sessions
+    if (message?.text && userSessions[senderId]) {
+      await handleTextMessage(senderId, message.text);
+      return;
+    }
+
+    // Default fallback to main menu
+    await showMainMenu(senderId);
+  } catch (error) {
+    await notifyAdmin(`🛑 Message handling failed: ${error.message}`);
+    await sendMessage(senderId, {text: "❌ An error occurred. Please try again."});
+  }
 }
 
-async function showPostSelection(userId) {
-    const posts = await fetchRecentPosts();
-    if (posts.length === 0) {
-        await sendMessage(userId, {text: "No recent posts found."});
-        return;
-    }
+/* ================== */
+/* MENU SYSTEM        */
+/* ================== */
 
-    userSessions[userId] = { step: 'selecting_post' };
-
+async function showMainMenu(userId) {
+  try {
+    delete userSessions[userId]; // Clear any existing session
+    
     await sendMessage(userId, {
-        text: "Select a post to configure:",
-        quick_replies: posts.map((post, index) => ({
-            content_type: "text",
-            title: `${index+1}. ${post.message?.substring(0, 20) || 'Post'}...`,
-            payload: `SELECT_POST|${post.id}`
-        })).concat([{
-            content_type: "text",
-            title: "❌ Cancel",
-            payload: "CANCEL"
-        }])
+      text: "🤖 *Auto-Reply Bot Main Menu*:\n\n" +
+            "1. Add Auto-Reply Configuration\n" +
+            "2. Stop Auto-Reply Configuration\n" +
+            "3. List Active Configurations\n" +
+            "4. Help\n\n" +
+            "Reply with the number of your choice (1-4)"
     });
+    
+    // Set session state
+    userSessions[userId] = {
+      awaitingSelection: true,
+      currentMenu: 'main',
+      options: [
+        { action: 'ADD_AUTO_REPLY' },
+        { action: 'STOP_AUTO_REPLY' },
+        { action: 'LIST_CONFIGS' },
+        { action: 'HELP' }
+      ]
+    };
+  } catch (error) {
+    await notifyAdmin(`🛑 Failed to show menu: ${error.message}`);
+  }
+}
+
+async function handleNumericSelection(userId, selection) {
+  const session = userSessions[userId];
+  if (!session?.awaitingSelection) return;
+
+  const choice = parseInt(selection);
+  if (isNaN(choice)) {
+    await sendMessage(userId, {text: "⚠️ Please enter a valid number"});
+    return;
+  }
+
+  const option = session.options[choice - 1];
+  if (!option) {
+    await sendMessage(userId, {text: "⚠️ Invalid selection. Please try again."});
+    return;
+  }
+
+  // Clear selection state
+  delete session.awaitingSelection;
+  delete session.options;
+
+  // Handle the selected action
+  switch(option.action) {
+    case 'ADD_AUTO_REPLY':
+      await showPostSelection(userId);
+      break;
+    case 'STOP_AUTO_REPLY':
+      await showActiveConfigurations(userId, true);
+      break;
+    case 'LIST_CONFIGS':
+      await showActiveConfigurations(userId, false);
+      break;
+    case 'HELP':
+      await sendHelpMessage(userId);
+      break;
+    default:
+      await showMainMenu(userId);
+  }
 }
 
 /* ================== */
 /* CONFIGURATION FLOW */
 /* ================== */
 
-async function handleQuickReply(userId, payload) {
-    if (payload === "ADD_AUTO_REPLY") {
-        await showPostSelection(userId);
-    } 
-    else if (payload === "STOP_AUTO_REPLY") {
-        await showActiveConfigurations(userId, true);
+async function showPostSelection(userId) {
+  try {
+    const posts = await fetchRecentPosts();
+    if (posts.length === 0) {
+      await sendMessage(userId, {text: "ℹ️ No recent posts found."});
+      return;
     }
-    else if (payload === "LIST_CONFIGS") {
-        await showActiveConfigurations(userId, false);
-    }
-    else if (payload.startsWith("SELECT_POST|")) {
-        const postId = payload.split("|")[1];
-        userSessions[userId] = {
-            postId,
-            step: 'awaiting_keywords'
-        };
-        await askForKeywords(userId);
-    }
-    else if (payload === "EMPTY_KEYWORDS") {
-        userSessions[userId].keywords = [];
-        userSessions[userId].step = 'awaiting_comment_reply';
-        await askForCommentReply(userId);
-    }
-    else if (payload.startsWith("STOP_CONFIG|")) {
-        const postId = payload.split("|")[1];
-        delete activePosts[postId];
-        await sendMessage(userId, {text: `Auto-reply stopped for post ${postId}`});
-        await showMainMenu(userId);
-    }
-    else if (payload === "CANCEL") {
-        delete userSessions[userId];
-        await showMainMenu(userId);
-    }
-    else {
-        // Ignore unknown quick replies
-        console.log(`Unknown quick reply payload: ${payload}`);
-    }
-}
 
-async function askForKeywords(userId) {
-    userSessions[userId].step = 'awaiting_keywords';
-    await sendMessage(userId, {
-        text: "Enter keywords (comma separated) or 'empty' for all comments:",
-        quick_replies: [{
-            content_type: "text",
-            title: "Empty",
-            payload: "EMPTY_KEYWORDS"
-        }]
+    let messageText = "📝 *Select a post to configure*:\n\n";
+    posts.forEach((post, index) => {
+      messageText += `${index+1}. ${post.message?.substring(0, 50) || `Post ${post.id.substring(0, 8)}`}\n`;
     });
-}
+    messageText += "\nReply with the number of the post (1-10) or '0' to cancel";
 
-async function askForCommentReply(userId) {
-    userSessions[userId].step = 'awaiting_comment_reply';
-    await sendMessage(userId, {
-        text: "Enter public reply for comments:"
-    });
-}
+    await sendMessage(userId, {text: messageText});
 
-async function askForPrivateMessage(userId) {
-    userSessions[userId].step = 'awaiting_private_message';
-    await sendMessage(userId, {
-        text: "Enter private message to send to commenters:"
-    });
-}
-
-async function confirmConfiguration(userId) {
-    const session = userSessions[userId];
-    await sendMessage(userId, {
-        text: `Confirm configuration for post ${session.postId}:\n\n` +
-              `Keywords: ${session.keywords?.join(', ') || 'All comments'}\n` +
-              `Public Reply: ${session.commentReply}\n` +
-              `Private Message: ${session.privateMessage}\n\n` +
-              "Type 'confirm' to save or 'cancel' to abort."
-    });
-}
-
-/* =============== */
-/* MESSAGE HANDLING */
-/* =============== */
-
-async function handleMessage(event) {
-    const senderId = event.sender.id;
-    const message = event.message;
-
-    if (!ADMIN_IDS.includes(senderId)) return;
-
-    // Process quick replies immediately
-    if (message?.quick_reply?.payload) {
-        await handleQuickReply(senderId, message.quick_reply.payload);
-        return;
-    }
-
-    // Show menu for any other message when not in session
-    if (!userSessions[senderId] && (event.postback?.payload === "GET_STARTED" || message)) {
-        await showMainMenu(senderId);
-        return;
-    }
-
-    // Process text messages only during active sessions
-    if (message?.text && userSessions[senderId]) {
-        await handleTextMessage(senderId, message.text);
-    }
-    // Ignore all other messages (attachments, etc)
-}
-
-async function handleTextMessage(userId, text) {
-    const session = userSessions[userId];
-    if (!session) {
-         await showMainMenu(senderId); 
+    // Set session state
+    userSessions[userId] = {
+      awaitingSelection: true,
+      currentMenu: 'postSelection',
+      options: posts.map(post => ({
+        postId: post.id,
+        action: 'SELECT_POST'
+      }))
     };
-
-    switch(session.step) {
-        case 'awaiting_keywords':
-            session.keywords = text.toLowerCase() === 'empty' ? [] : 
-                             text.split(',').map(k => k.trim().toLowerCase());
-            await askForCommentReply(userId);
-            break;
-
-        case 'awaiting_comment_reply':
-            session.commentReply = text;
-            await askForPrivateMessage(userId);
-            break;
-
-        case 'awaiting_private_message':
-            session.privateMessage = text;
-            await confirmConfiguration(userId);
-            session.step = 'awaiting_confirmation';
-            break;
-
-        case 'awaiting_confirmation':
-            if (text.toLowerCase() === 'confirm') {
-                await saveConfiguration(userId);
-            } else {
-                await sendMessage(userId, {text: "Configuration cancelled."});
-            }
-            delete userSessions[userId];
-            await showMainMenu(userId);
-            break;
-    }
-}
-
-/* ============= */
-/* CORE FEATURES */
-/* ============= */
-
-async function saveConfiguration(userId) {
-    const session = userSessions[userId];
-    activePosts[session.postId] = {
-        keywords: session.keywords,
-        commentReply: session.commentReply,
-        privateMessage: session.privateMessage
-    };
-    await sendMessage(userId, {text: `Auto-reply configured for post ${session.postId}`});
+  } catch (error) {
+    await sendMessage(userId, {text: "❌ Failed to load posts. Please try again."});
+  }
 }
 
 async function showActiveConfigurations(userId, forStopping = false) {
-    const active = Object.entries(activePosts)
-        .filter(([_, config]) => config.commentReply || config.privateMessage);
+  try {
+    const active = Object.entries(activePosts);
 
     if (active.length === 0) {
-        await sendMessage(userId, {text: "No active configurations."});
-        return;
+      await sendMessage(userId, {text: "ℹ️ No active configurations."});
+      return;
     }
 
-    const quickReplies = active.map(([postId, _], index) => ({
-        content_type: "text",
-        title: `${index+1}. Post ${postId.substring(0, 8)}...`,
-        payload: forStopping ? `STOP_CONFIG|${postId}` : `VIEW_CONFIG|${postId}`
-    }));
+    let messageText = forStopping 
+      ? "🛑 *Select configuration to stop*:\n\n"
+      : "📋 *Active configurations*:\n\n";
 
-    await sendMessage(userId, {
-        text: forStopping ? "Select configuration to stop:" : "Active configurations:",
-        quick_replies: quickReplies.concat([{
-            content_type: "text",
-            title: "❌ Cancel",
-            payload: "CANCEL"
-        }])
+    active.forEach(([postId, config], index) => {
+      messageText += `${index+1}. Post ${postId.substring(0, 8)}\n` +
+                    `   Public Reply: ${config.commentReply}\n` +
+                    `   Private Message: ${config.privateMessage}\n\n`;
     });
+
+    messageText += "Reply with the number to select (1-10) or '0' to cancel";
+
+    await sendMessage(userId, {text: messageText});
+
+    // Set session state
+    userSessions[userId] = {
+      awaitingSelection: true,
+      currentMenu: forStopping ? 'stopConfig' : 'viewConfig',
+      options: active.map(([postId]) => ({
+        postId,
+        action: forStopping ? 'STOP_CONFIG' : 'VIEW_CONFIG'
+      }))
+    };
+  } catch (error) {
+    await sendMessage(userId, {text: "❌ Failed to load configurations. Please try again."});
+  }
 }
 
-/* ============ */
-/* COMMENTS HANDLING */
-/* ============ */
+async function handleTextMessage(userId, text) {
+  const session = userSessions[userId];
+  if (!session) return;
+
+  switch(session.step) {
+    case 'awaiting_comment_reply':
+      session.commentReply = text;
+      session.step = 'awaiting_private_message';
+      await sendMessage(userId, {
+        text: "📩 Enter the PRIVATE message that will be sent to users who comment:"
+      });
+      break;
+
+    case 'awaiting_private_message':
+      session.privateMessage = text;
+      await confirmConfiguration(userId);
+      break;
+
+    case 'awaiting_confirmation':
+      if (text.toLowerCase() === 'confirm') {
+        await saveConfiguration(userId);
+      } else {
+        await sendMessage(userId, {text: "❌ Configuration cancelled."});
+      }
+      delete userSessions[userId];
+      await showMainMenu(userId);
+      break;
+  }
+}
+
+async function confirmConfiguration(userId) {
+  const session = userSessions[userId];
+  await sendMessage(userId, {
+    text: `🔍 *Confirm configuration for post ${session.postId}*:\n\n` +
+          `💬 *Public Reply*: ${session.commentReply}\n\n` +
+          `📩 *Private Message*: ${session.privateMessage}\n\n` +
+          "Type 'confirm' to save or anything else to cancel."
+  });
+  session.step = 'awaiting_confirmation';
+}
+
+async function saveConfiguration(userId) {
+  const session = userSessions[userId];
+  activePosts[session.postId] = {
+    commentReply: session.commentReply,
+    privateMessage: session.privateMessage
+  };
+  await sendMessage(userId, {text: `✅ Auto-reply configured for post ${session.postId}`});
+  await notifyAdmin(`📝 New configuration saved for post ${session.postId}`);
+}
+
+/* ================== */
+/* COMMENT HANDLING   */
+/* ================== */
 
 async function processChange(change) {
-    if (change.field === 'feed' && change.value.item === 'comment') {
-        await handleComment(change.value);
-    }
+  if (change.field === 'feed' && change.value.item === 'comment') {
+    await handleComment(change.value);
+  }
 }
 
 async function handleComment(commentData) {
+  try {
     const postId = commentData.post_id;
     const config = activePosts[postId];
     if (!config) return;
 
-    const commentText = commentData.message.toLowerCase();
-    const shouldReply = config.keywords.length === 0 || 
-                      config.keywords.some(kw => commentText.includes(kw));
-
-    if (shouldReply) {
-        // Public reply (T1)
-        if (config.commentReply) {
-            await axios.post(`https://graph.facebook.com/${API_VERSION}/${commentData.comment_id}/comments`, {
-                message: config.commentReply
-            }, {
-                params: { access_token: T1_ACCESS_TOKEN }
-            });
-        }
-
-        // Private message (T2)
-        if (config.privateMessage) {
-            await sendMessage(commentData.from.id, {text: config.privateMessage});
-        }
+    // Public reply
+    if (config.commentReply) {
+      await axios.post(
+        `https://graph.facebook.com/${API_VERSION}/${commentData.comment_id}/comments`,
+        { message: config.commentReply },
+        { params: { access_token: T1_ACCESS_TOKEN } }
+      );
     }
+
+    // Private message
+    if (config.privateMessage) {
+      await sendMessage(commentData.from.id, {text: config.privateMessage});
+    }
+    
+    await notifyAdmin(`💬 Replied to comment on post ${postId}`);
+  } catch (error) {
+    await notifyAdmin(`🛑 Failed to handle comment: ${error.message}`);
+  }
 }
 
-/* ============ */
-/* UTILITIES */
-/* ============ */
+/* ================== */
+/* UTILITY FUNCTIONS  */
+/* ================== */
 
 async function sendMessage(userId, message) {
-    try {
-        await axios.post(`https://graph.facebook.com/${API_VERSION}/me/messages`, {
-            recipient: {id: userId},
-            message
-        }, {
-            params: {access_token: T2_ACCESS_TOKEN}
-        });
-    } catch (error) {
-        console.error("Messaging error:", error.response?.data);
-    }
+  try {
+    const response = await axios.post(
+      `https://graph.facebook.com/${API_VERSION}/me/messages`,
+      { recipient: {id: userId}, message },
+      { params: { access_token: T2_ACCESS_TOKEN } }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Messaging error:", error.response?.data);
+    throw error;
+  }
 }
 
 async function setupGetStartedButton() {
-    try {
-        await axios.post(`https://graph.facebook.com/${API_VERSION}/me/messenger_profile`, {
-            get_started: {payload: "GET_STARTED"}
-        }, {
-            params: {access_token: T2_ACCESS_TOKEN}
-        });
-    } catch (error) {
-        console.error("Get Started setup failed:", error.response?.data);
-    }
+  try {
+    await axios.post(
+      `https://graph.facebook.com/${API_VERSION}/me/messenger_profile`,
+      { get_started: { payload: "GET_STARTED" } },
+      { params: { access_token: T2_ACCESS_TOKEN } }
+    );
+  } catch (error) {
+    await notifyAdmin(`🛑 Failed to setup Get Started button: ${error.message}`);
+  }
 }
 
-async function showMainMenu(userId) {
-    await sendMessage(userId, {
-        text: "Main Menu:",
-        quick_replies: [
-            {
-                content_type: "text",
-                title: "➕ Add Auto-Reply",
-                payload: "ADD_AUTO_REPLY"
-            },
-            {
-                content_type: "text",
-                title: "🛑 Stop Auto-Reply",
-                payload: "STOP_AUTO_REPLY"
-            },
-            {
-                content_type: "text",
-                title: "📋 List Configs",
-                payload: "LIST_CONFIGS"
-            }
-        ]
-    });
+async function fetchRecentPosts() {
+  try {
+    const response = await axios.get(
+      `https://graph.facebook.com/${API_VERSION}/me/posts`,
+      {
+        params: {
+          access_token: T1_ACCESS_TOKEN,
+          fields: 'id,message,created_time',
+          limit: 10
+        }
+      }
+    );
+    return response.data.data;
+  } catch (error) {
+    await notifyAdmin(`🛑 Failed to fetch posts: ${error.message}`);
+    return [];
+  }
 }
+
+async function sendHelpMessage(userId) {
+  await sendMessage(userId, {
+    text: "🆘 *Help Guide*:\n\n" +
+          "1. *Add Auto-Reply*: Set up automatic replies to post comments\n" +
+          "2. *Stop Auto-Reply*: Remove existing configurations\n" +
+          "3. *List Configs*: View your active auto-reply setups\n\n" +
+          "For each configuration, you'll set:\n" +
+          "- A public reply that appears under the comment\n" +
+          "- A private message sent to the commenter\n\n" +
+          "Use /start anytime to return to the main menu"
+  });
+  await showMainMenu(userId);
+}
+
+// Start the server
+app.listen(PORT, async () => {
+  console.log(`Server running on port ${PORT}`);
+  await notifyAdmin(`✅ Server started on port ${PORT}`);
+  try {
+    await setupWebhookSubscription();
+    await setupGetStartedButton();
+    await notifyAdmin('🟢 Initialization completed successfully');
+  } catch (error) {
+    await notifyAdmin(`🔴 Initialization failed: ${error.message}`);
+  }
+});
