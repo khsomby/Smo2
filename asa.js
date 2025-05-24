@@ -24,13 +24,25 @@ const PORT = 2008;
 app.listen(PORT, async () => {
     console.log(`Server running on port ${PORT}`);
     await setupGetStartedButton();
+    await subscribeToWebhooks();
 });
 
-/* ================== */
-/* CORE FUNCTIONALITY */
-/* ================== */
+/* ====================== */
+/* WEBHOOK IMPLEMENTATION */
+/* ====================== */
 
-// Webhook verification
+async function subscribeToWebhooks() {
+    try {
+        await axios.post(`https://graph.facebook.com/${API_VERSION}/me/subscribed_apps`, {
+            subscribed_fields: ['feed', 'messages'],
+            access_token: T1_ACCESS_TOKEN
+        });
+        console.log('Successfully subscribed to webhooks');
+    } catch (error) {
+        console.error('Error subscribing to webhooks:', error.response?.data);
+    }
+}
+
 app.get('/webhook', (req, res) => {
     if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === VERIFY_TOKEN) {
         res.status(200).send(req.query['hub.challenge']);
@@ -39,30 +51,139 @@ app.get('/webhook', (req, res) => {
     }
 });
 
-// Webhook handler
 app.post('/webhook', async (req, res) => {
     const body = req.body;
     if (body.object === 'page') {
-        await Promise.all(body.entry.map(processEntry));
+        for (const entry of body.entry) {
+            // Handle messaging events
+            if (entry.messaging) {
+                await handleMessage(entry.messaging[0]);
+            }
+            
+            // Handle feed changes
+            if (entry.changes) {
+                for (const change of entry.changes) {
+                    if (change.field === 'feed') {
+                        await processFeedChange(change.value);
+                    }
+                }
+            }
+        }
         res.status(200).send('EVENT_RECEIVED');
     } else {
         res.sendStatus(404);
     }
 });
 
-// Process entry
-async function processEntry(entry) {
-    if (entry.messaging) {
-        await handleMessage(entry.messaging[0]);
-    }
-    if (entry.changes) {
-        await Promise.all(entry.changes.map(processChange));
+async function processFeedChange(change) {
+    if (change.item === 'comment' && change.verb === 'add') {
+        await handleComment({
+            post_id: change.post_id,
+            comment_id: change.comment_id,
+            message: change.message,
+            from: change.from
+        });
     }
 }
 
-/* ============== */
-/* POST HANDLING  */
-/* ============== */
+/* ================== */
+/* COMMENT HANDLING   */
+/* ================== */
+
+async function handleComment(commentData) {
+    try {
+        const postId = commentData.post_id;
+        const config = activePosts[postId];
+        
+        if (!config) return;
+
+        const commentText = commentData.message.toLowerCase();
+        const shouldReply = config.keywords.length === 0 || 
+                         config.keywords.some(kw => commentText.includes(kw.toLowerCase()));
+
+        if (shouldReply) {
+            // Public reply
+            if (config.commentReply) {
+                await axios.post(`https://graph.facebook.com/${API_VERSION}/${commentData.comment_id}/comments`, {
+                    message: config.commentReply
+                }, {
+                    params: { access_token: T1_ACCESS_TOKEN }
+                });
+            }
+
+            // Private message
+            if (config.privateMessage) {
+                await sendMessage(commentData.from.id, {text: config.privateMessage});
+            }
+        }
+    } catch (error) {
+        console.error('Error handling comment:', error.response?.data || error.message);
+    }
+}
+
+/* ================== */
+/* ADMIN FLOW         */
+/* ================== */
+
+async function handleMessage(event) {
+    const senderId = event.sender.id;
+    const message = event.message;
+
+    if (!ADMIN_IDS.includes(senderId)) return;
+
+    if (message?.quick_reply?.payload) {
+        await handleQuickReply(senderId, message.quick_reply.payload);
+        return;
+    }
+
+    if (!userSessions[senderId] && (event.postback?.payload === "GET_STARTED" || message)) {
+        await showMainMenu(senderId);
+        return;
+    }
+
+    if (message?.text && userSessions[senderId]) {
+        await handleTextMessage(senderId, message.text);
+    }
+}
+
+async function handleQuickReply(userId, payload) {
+    if (payload === "ADD_AUTO_REPLY") {
+        await showPostSelection(userId);
+    } 
+    else if (payload === "STOP_AUTO_REPLY") {
+        await showActiveConfigurations(userId, true);
+    }
+    else if (payload === "LIST_CONFIGS") {
+        await showActiveConfigurations(userId, false);
+    }
+    else if (payload.startsWith("SELECT_POST|")) {
+        const postId = payload.split("|")[1];
+        userSessions[userId] = {
+            postId,
+            step: 'awaiting_keywords'
+        };
+        await askForKeywords(userId);
+    }
+    else if (payload === "EMPTY_KEYWORDS") {
+        userSessions[userId].keywords = [];
+        userSessions[userId].step = 'awaiting_comment_reply';
+        await askForCommentReply(userId);
+    }
+    else if (payload.startsWith("STOP_CONFIG|")) {
+        const postId = payload.split("|")[1];
+        delete activePosts[postId];
+        await sendMessage(userId, {text: `Auto-reply stopped for post ${postId}`});
+        await showMainMenu(userId);
+    }
+    else if (payload === "CANCEL") {
+        delete userSessions[userId];
+        await showMainMenu(userId);
+    }
+}
+
+/* ================== */
+/* CONFIGURATION FLOW */
+/* ================== */
 
 async function fetchRecentPosts() {
     try {
@@ -103,49 +224,6 @@ async function showPostSelection(userId) {
     });
 }
 
-/* ================== */
-/* CONFIGURATION FLOW */
-/* ================== */
-
-async function handleQuickReply(userId, payload) {
-    if (payload === "ADD_AUTO_REPLY") {
-        await showPostSelection(userId);
-    } 
-    else if (payload === "STOP_AUTO_REPLY") {
-        await showActiveConfigurations(userId, true);
-    }
-    else if (payload === "LIST_CONFIGS") {
-        await showActiveConfigurations(userId, false);
-    }
-    else if (payload.startsWith("SELECT_POST|")) {
-        const postId = payload.split("|")[1];
-        userSessions[userId] = {
-            postId,
-            step: 'awaiting_keywords'
-        };
-        await askForKeywords(userId);
-    }
-    else if (payload === "EMPTY_KEYWORDS") {
-        userSessions[userId].keywords = [];
-        userSessions[userId].step = 'awaiting_comment_reply';
-        await askForCommentReply(userId);
-    }
-    else if (payload.startsWith("STOP_CONFIG|")) {
-        const postId = payload.split("|")[1];
-        delete activePosts[postId];
-        await sendMessage(userId, {text: `Auto-reply stopped for post ${postId}`});
-        await showMainMenu(userId);
-    }
-    else if (payload === "CANCEL") {
-        delete userSessions[userId];
-        await showMainMenu(userId);
-    }
-    else {
-        // Ignore unknown quick replies
-        console.log(`Unknown quick reply payload: ${payload}`);
-    }
-}
-
 async function askForKeywords(userId) {
     userSessions[userId].step = 'awaiting_keywords';
     await sendMessage(userId, {
@@ -183,35 +261,6 @@ async function confirmConfiguration(userId) {
     });
 }
 
-/* =============== */
-/* MESSAGE HANDLING */
-/* =============== */
-
-async function handleMessage(event) {
-    const senderId = event.sender.id;
-    const message = event.message;
-
-    if (!ADMIN_IDS.includes(senderId)) return;
-
-    // Process quick replies immediately
-    if (message?.quick_reply?.payload) {
-        await handleQuickReply(senderId, message.quick_reply.payload);
-        return;
-    }
-
-    // Show menu for any other message when not in session
-    if (!userSessions[senderId] && (event.postback?.payload === "GET_STARTED" || message)) {
-        await showMainMenu(senderId);
-        return;
-    }
-
-    // Process text messages only during active sessions
-    if (message?.text && userSessions[senderId]) {
-        await handleTextMessage(senderId, message.text);
-    }
-    // Ignore all other messages (attachments, etc)
-}
-
 async function handleTextMessage(userId, text) {
     const session = userSessions[userId];
     if (!session) return;
@@ -245,10 +294,6 @@ async function handleTextMessage(userId, text) {
             break;
     }
 }
-
-/* ============= */
-/* CORE FEATURES */
-/* ============= */
 
 async function saveConfiguration(userId) {
     const session = userSessions[userId];
@@ -286,43 +331,7 @@ async function showActiveConfigurations(userId, forStopping = false) {
 }
 
 /* ============ */
-/* COMMENTS HANDLING */
-/* ============ */
-
-async function processChange(change) {
-    if (change.field === 'feed' && change.value.item === 'comment') {
-        await handleComment(change.value);
-    }
-}
-
-async function handleComment(commentData) {
-    const postId = commentData.post_id;
-    const config = activePosts[postId];
-    if (!config) return;
-
-    const commentText = commentData.message.toLowerCase();
-    const shouldReply = config.keywords.length === 0 || 
-                      config.keywords.some(kw => commentText.includes(kw));
-
-    if (shouldReply) {
-        // Public reply (T1)
-        if (config.commentReply) {
-            await axios.post(`https://graph.facebook.com/${API_VERSION}/${commentData.comment_id}/comments`, {
-                message: config.commentReply
-            }, {
-                params: { access_token: T1_ACCESS_TOKEN }
-            });
-        }
-
-        // Private message (T2)
-        if (config.privateMessage) {
-            await sendMessage(commentData.from.id, {text: config.privateMessage});
-        }
-    }
-}
-
-/* ============ */
-/* UTILITIES */
+/* UTILITIES    */
 /* ============ */
 
 async function sendMessage(userId, message) {
