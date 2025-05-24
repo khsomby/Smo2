@@ -214,7 +214,9 @@ async function handleMessage(event) {
 
 async function handleTextMessage(userId, text) {
     const session = userSessions[userId];
-    if (!session) return;
+    if (!session) {
+         await showMainMenu(senderId); 
+    };
 
     switch(session.step) {
         case 'awaiting_keywords':
