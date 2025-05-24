@@ -7,248 +7,58 @@ const app = express();
 app.use(bodyParser.json());
 
 // Configuration
-const T1_ACCESS_TOKEN = process.env.T1;
-const T2_ACCESS_TOKEN = process.env.T2;
+const T1_ACCESS_TOKEN = process.env.T1; // For feed/comments
+const T2_ACCESS_TOKEN = process.env.T2; // For messaging
 const VERIFY_TOKEN = "somby";
 const API_VERSION = 'v18.0';
-const ADMIN_ID = '6881956545251284';
-const endpointPassword = 'Auto_2025';
+const ADMIN_ID = '6881956545251284'; // Your Facebook user ID
+
+// Data storage
+const activePosts = {};
+const userSessions = {};
+let LAST_POST_ID = null;
+
 const PORT = 2008;
 
-let isActive = false;
-const monitoredPosts = {};
-const adminSessions = {};
-
-// Webhook verification
-app.get('/webhook', (req, res) => {
-  if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === VERIFY_TOKEN) {
-    res.status(200).send(req.query['hub.challenge']);
-  } else {
-    res.sendStatus(403);
-  }
-});
-
-// Webhook event handler
-app.post('/webhook', async (req, res) => {
+// Startup
+app.listen(PORT, async () => {
+  console.log(`Server running on port ${PORT}`);
+  await notifyAdmin('🚀 Bot server started');
+  
   try {
-    if (req.body.object === 'page') {
-      for (const entry of req.body.entry) {
-        if (entry.messaging) {
-          for (const event of entry.messaging) {
-            if (event.message?.quick_reply) {
-              await handleQuickReply(event);
-            } else {
-              await handleMessage(event);
-            }
-          }
-        }
-        if (entry.changes) {
-          await Promise.all(entry.changes.map(processChange));
-        }
-      }
-    }
-    res.sendStatus(200);
-  } catch (e) {
-    console.error('Webhook error:', e);
-    res.sendStatus(500);
-  }
-});
-
-// Control endpoints
-app.post('/activate', authCheck, (req, res) => {
-  isActive = true;
-  res.json({ status: 'ACTIVE' });
-});
-
-app.post('/deactivate', authCheck, (req, res) => {
-  isActive = false;
-  res.json({ status: 'INACTIVE' });
-});
-
-app.post('/monitor-post', authCheck, async (req, res) => {
-  const { postId, keywords = [], publicReply, privateReply } = req.body;
-  monitoredPosts[postId] = { keywords, publicReply, privateReply };
-  await setupWebhookSubscription();
-  res.json({ status: 'MONITORING', postId, keywords });
-});
-
-app.get('/status', (req, res) => {
-  res.json({ status: isActive ? 'ACTIVE' : 'INACTIVE', monitoredPosts });
-});
-
-function authCheck(req, res, next) {
-  if (req.body.password !== endpointPassword) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  next();
-}
-
-// Message handler
-async function handleMessage(event) {
-  const senderId = event.sender.id;
-  const messageText = event.message?.text?.trim();
-
-  if (!messageText) return;
-
-  if (senderId !== ADMIN_ID) {
-    if (isActive) {
-      await sendMessage(senderId, { text: "Thanks for your message! We'll get back to you soon." });
-    }
-    return;
-  }
-
-  if (messageText.toLowerCase() === '/start') {
-    return sendQuickReplies(senderId, 'Welcome! What would you like to do?', [
-      { title: 'Add Post', payload: 'MENU_ADD_POST' },
-      { title: 'View Status', payload: 'MENU_VIEW_STATUS' },
-      { title: 'Cancel', payload: 'MENU_CANCEL' }
-    ]);
-  }
-
-  if (messageText.toLowerCase() === '/addpost') {
-    adminSessions[senderId] = { step: 'awaiting_post_id', data: {} };
-    return sendMessage(senderId, { text: 'Please enter the Facebook post ID to monitor:' });
-  }
-
-  if (messageText.toLowerCase() === '/cancel') {
-    delete adminSessions[senderId];
-    return sendMessage(senderId, { text: 'Cancelled any ongoing setup.' });
-  }
-
-  const session = adminSessions[senderId];
-  if (!session) return;
-
-  switch (session.step) {
-    case 'awaiting_post_id':
-      session.data.postId = messageText;
-      session.step = 'awaiting_keywords';
-      return sendQuickReplies(senderId, 'Do you want to use keywords to filter comments?', [
-        { title: 'Yes', payload: 'KEYWORDS_YES' },
-        { title: 'No', payload: 'KEYWORDS_NO' }
-      ]);
-
-    case 'awaiting_keywords_input':
-      session.data.keywords = messageText.split(',').map(k => k.trim());
-      session.step = 'awaiting_public_reply';
-      return sendMessage(senderId, { text: 'Enter the public reply to comments:' });
-
-    case 'awaiting_public_reply':
-      session.data.publicReply = messageText;
-      session.step = 'awaiting_private_reply';
-      return sendMessage(senderId, { text: 'Enter the private message reply:' });
-
-    case 'awaiting_private_reply':
-      session.data.privateReply = messageText;
-      monitoredPosts[session.data.postId] = {
-        keywords: session.data.keywords || [],
-        publicReply: session.data.publicReply,
-        privateReply: session.data.privateReply
+    // Initialize last post monitoring
+    const posts = await fetchRecentPosts();
+    if (posts?.length > 0) {
+      LAST_POST_ID = posts[0].id;
+      activePosts[LAST_POST_ID] = {
+        keywords: [],
+        commentReply: "Thanks for your comment!",
+        privateMessage: "We received your comment and will respond soon."
       };
-      await setupWebhookSubscription();
-      delete adminSessions[senderId];
-      return sendMessage(senderId, {
-        text: `✅ Monitoring post ${session.data.postId}\n` +
-              `Keywords: ${session.data.keywords?.join(', ') || 'None'}\n` +
-              `Public Reply: ${session.data.publicReply}\n` +
-              `Private Reply: ${session.data.privateReply}`
-      });
-
-    default:
-      delete adminSessions[senderId];
-      return sendMessage(senderId, { text: 'Error. Please start again with /start.' });
-  }
-}
-
-// Handle quick replies
-async function handleQuickReply(event) {
-  const senderId = event.sender.id;
-  const payload = event.message.quick_reply.payload;
-  const session = adminSessions[senderId];
-
-  switch (payload) {
-    case 'MENU_ADD_POST':
-      adminSessions[senderId] = { step: 'awaiting_post_id', data: {} };
-      return sendMessage(senderId, { text: 'Please enter the Facebook post ID to monitor:' });
-
-    case 'MENU_VIEW_STATUS':
-      return sendMessage(senderId, {
-        text: `Bot is currently ${isActive ? 'ACTIVE' : 'INACTIVE'}\n\n` +
-              `Monitored posts:\n` +
-              (Object.entries(monitoredPosts).map(
-                ([id, conf]) => `- ${id} (${conf.keywords.length ? 'keywords' : 'no keywords'})`
-              ).join('\n') || 'None')
-      });
-
-    case 'MENU_CANCEL':
-      delete adminSessions[senderId];
-      return sendMessage(senderId, { text: 'Cancelled any ongoing setup.' });
-
-    case 'KEYWORDS_YES':
-      if (!session) return;
-      session.step = 'awaiting_keywords_input';
-      return sendMessage(senderId, { text: 'Enter keywords (comma-separated):' });
-
-    case 'KEYWORDS_NO':
-      if (!session) return;
-      session.data.keywords = [];
-      session.step = 'awaiting_public_reply';
-      return sendMessage(senderId, { text: 'Enter the public reply to comments:' });
-
-    default:
-      return sendMessage(senderId, { text: 'Unknown action. Try /start again.' });
-  }
-}
-
-// Process comments on monitored posts
-async function processChange(change) {
-  if (!isActive) return;
-
-  if (change.field === 'feed' && change.value.item === 'comment') {
-    const { post_id, comment_id, from, message } = change.value;
-    const config = monitoredPosts[post_id];
-    if (!config) return;
-
-    const shouldReply = config.keywords.length === 0 ||
-      config.keywords.some(k => message.toLowerCase().includes(k.toLowerCase()));
-
-    if (!shouldReply) return;
-
-    try {
-      await axios.post(`https://graph.facebook.com/${API_VERSION}/${comment_id}/comments`,
-        { message: config.publicReply },
-        { params: { access_token: T1_ACCESS_TOKEN } });
-
-      await sendMessage(from.id, { text: config.privateReply });
-      console.log(`Replied to comment on post ${post_id}`);
-    } catch (error) {
-      console.error('Reply error:', error.response?.data || error.message);
+      await notifyAdmin(`📌 Auto-monitoring last post: ${LAST_POST_ID}`);
     }
-  }
-}
 
-// Send message
-async function sendMessage(userId, message) {
-  try {
-    await axios.post(`https://graph.facebook.com/${API_VERSION}/me/messages`,
-      { recipient: { id: userId }, message },
-      { params: { access_token: T2_ACCESS_TOKEN } });
+    await setupWebhookSubscription();
+    await setupGetStartedButton();
+    await setupPersistentMenu();
+    await notifyAdmin('🟢 Bot is fully operational');
   } catch (error) {
-    console.error('Message error:', error.response?.data || error.message);
+    await notifyAdmin(`🔴 Initialization failed: ${error.message}`);
+  }
+});
+
+/* =============== */
+/* CORE FUNCTIONS  */
+/* =============== */
+
+async function notifyAdmin(message) {
+  try {
+    await sendMessage(ADMIN_ID, { text: message });
+  } catch (error) {
+    console.error('Failed to notify admin:', error);
   }
 }
 
-// Send quick replies
-async function sendQuickReplies(userId, text, replies) {
-  const quick_replies = replies.map(r => ({
-    content_type: 'text',
-    title: r.title,
-    payload: r.payload
-  }));
-
-  return sendMessage(userId, { text, quick_replies });
-}
-
-// Subscribe to webhook events
 async function setupWebhookSubscription() {
   try {
     await axios.post(
@@ -256,13 +66,390 @@ async function setupWebhookSubscription() {
       { subscribed_fields: ['feed'] },
       { params: { access_token: T1_ACCESS_TOKEN } }
     );
-    console.log('Subscribed to feed events');
-  } catch (e) {
-    console.error('Subscription error:', e.message);
+  } catch (error) {
+    await notifyAdmin(`❌ Webhook setup failed: ${error.message}`);
+    throw error;
   }
 }
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Bot is running on http://localhost:${PORT}`);
+/* =============== */
+/* WEBHOOK ROUTES  */
+/* =============== */
+
+app.get('/webhook', (req, res) => {
+  if (req.query['hub.mode'] === 'subscribe' && 
+      req.query['hub.verify_token'] === VERIFY_TOKEN) {
+    res.status(200).send(req.query['hub.challenge']);
+  } else {
+    res.sendStatus(403);
+  }
 });
+
+app.post('/webhook', async (req, res) => {
+  try {
+    if (req.body.object === 'page') {
+      await Promise.all(req.body.entry.map(processEntry));
+      res.status(200).send('EVENT_RECEIVED');
+    } else {
+      res.sendStatus(404);
+    }
+  } catch (error) {
+    await notifyAdmin(`🛑 Webhook error: ${error.message}`);
+    res.status(500).send('ERROR_PROCESSING');
+  }
+});
+
+/* =============== */
+/* MESSAGE HANDLER */
+/* =============== */
+
+async function processEntry(entry) {
+  if (entry.messaging) await handleMessage(entry.messaging[0]);
+  if (entry.changes) await Promise.all(entry.changes.map(processChange));
+}
+
+async function handleMessage(event) {
+  if (event.sender.id != ADMIN_ID) return;
+
+  try {
+    // Handle /start command
+    if (event.message?.text?.toLowerCase().trim() === '/start') {
+      return showMainMenu(ADMIN_ID);
+    }
+
+    // Handle Get Started button
+    if (event.postback?.payload === "GET_STARTED") {
+      return showMainMenu(ADMIN_ID);
+    }
+
+    // Handle quick replies
+    if (event.message?.quick_reply?.payload) {
+      return handleQuickReply(ADMIN_ID, event.message.quick_reply.payload);
+    }
+
+    // Handle text in sessions
+    if (event.message?.text && userSessions[ADMIN_ID]) {
+      return handleTextMessage(ADMIN_ID, event.message.text);
+    }
+
+    // Default to main menu
+    await showMainMenu(ADMIN_ID);
+  } catch (error) {
+    await notifyAdmin(`💥 Error: ${error.message}`);
+    await showMainMenu(ADMIN_ID);
+  }
+}
+
+/* =============== */
+/* MENU SYSTEM     */
+/* =============== */
+
+async function setupPersistentMenu() {
+  await axios.post(
+    `https://graph.facebook.com/${API_VERSION}/me/messenger_profile`,
+    {
+      persistent_menu: [{
+        locale: 'default',
+        call_to_actions: [
+          {
+            type: 'postback',
+            title: '🏠 Main Menu',
+            payload: 'GET_STARTED'
+          },
+          {
+            type: 'postback',
+            title: '🆘 Help',
+            payload: 'HELP'
+          }
+        ]
+      }]
+    },
+    { params: { access_token: T2_ACCESS_TOKEN } }
+  );
+}
+
+async function showMainMenu(userId) {
+  await sendMessage(userId, {
+    text: "🤖 Auto-Reply Bot Menu:",
+    quick_replies: [
+      {
+        content_type: "text",
+        title: "➕ Add Auto-Reply",
+        payload: "ADD_AUTO_REPLY"
+      },
+      {
+        content_type: "text",
+        title: "🛑 Stop Auto-Reply",
+        payload: "STOP_AUTO_REPLY"
+      },
+      {
+        content_type: "text",
+        title: "📋 List Configs",
+        payload: "LIST_CONFIGS"
+      }
+    ]
+  });
+}
+
+/* =============== */
+/* CORE FEATURES   */
+/* =============== */
+
+async function handleQuickReply(userId, payload) {
+  try {
+    switch(payload) {
+      case "ADD_AUTO_REPLY":
+        return showPostSelection(userId);
+      case "STOP_AUTO_REPLY":
+        return showActiveConfigurations(userId, true);
+      case "LIST_CONFIGS":
+        return showActiveConfigurations(userId, false);
+      case "HELP":
+        return sendHelpMessage(userId);
+      case "EMPTY_KEYWORDS":
+        userSessions[userId] = { 
+          ...userSessions[userId], 
+          keywords: [],
+          step: 'awaiting_comment_reply'
+        };
+        return askForCommentReply(userId);
+      default:
+        if (payload.startsWith("SELECT_POST|")) {
+          const postId = payload.split("|")[1];
+          userSessions[userId] = { postId, step: 'awaiting_keywords' };
+          return askForKeywords(userId);
+        }
+        if (payload.startsWith("STOP_CONFIG|")) {
+          const postId = payload.split("|")[1];
+          delete activePosts[postId];
+          await sendMessage(userId, {text: `✅ Stopped auto-reply for post ${postId}`});
+          return showMainMenu(userId);
+        }
+        if (payload === "CANCEL") {
+          delete userSessions[userId];
+          return showMainMenu(userId);
+        }
+    }
+  } catch (error) {
+    await notifyAdmin(`💥 Quick reply error: ${error.message}`);
+    await showMainMenu(userId);
+  }
+}
+
+async function sendHelpMessage(userId) {
+  await sendMessage(userId, {
+    text: "🆘 Help Guide:\n\n" +
+          "/start - Show main menu\n" +
+          "Add Auto-Reply - Setup automatic replies\n" +
+          "Stop Auto-Reply - Remove configurations\n" +
+          "List Configs - View active auto-replies"
+  });
+  await showMainMenu(userId);
+}
+
+/* =============== */
+/* POST HANDLING   */
+/* =============== */
+
+async function fetchRecentPosts() {
+  try {
+    const response = await axios.get(
+      `https://graph.facebook.com/${API_VERSION}/me/posts`,
+      { 
+        params: { 
+          access_token: T1_ACCESS_TOKEN,
+          fields: 'id,message,created_time',
+          limit: 5
+        }
+      }
+    );
+    return response.data.data;
+  } catch (error) {
+    await notifyAdmin(`❌ Failed to fetch posts: ${error.message}`);
+    return [];
+  }
+}
+
+async function showPostSelection(userId) {
+  const posts = await fetchRecentPosts();
+  if (!posts.length) {
+    return sendMessage(userId, {text: "ℹ️ No recent posts found."});
+  }
+
+  userSessions[userId] = { step: 'selecting_post' };
+
+  await sendMessage(userId, {
+    text: "Select a post to configure:",
+    quick_replies: [
+      ...posts.map((post, i) => ({
+        content_type: "text",
+        title: `Post ${i+1}`,
+        payload: `SELECT_POST|${post.id}`
+      })),
+      {
+        content_type: "text",
+        title: "❌ Cancel",
+        payload: "CANCEL"
+      }
+    ]
+  });
+}
+
+/* =============== */
+/* CONFIGURATION   */
+/* =============== */
+
+async function askForKeywords(userId) {
+  userSessions[userId].step = 'awaiting_keywords';
+  await sendMessage(userId, {
+    text: "🔤 Enter keywords (comma separated) or click 'Empty' for all comments:",
+    quick_replies: [{
+      content_type: "text",
+      title: "Empty",
+      payload: "EMPTY_KEYWORDS"
+    }]
+  });
+}
+
+async function askForCommentReply(userId) {
+  userSessions[userId].step = 'awaiting_comment_reply';
+  await sendMessage(userId, {
+    text: "💬 Enter public reply for comments:"
+  });
+}
+
+async function askForPrivateMessage(userId) {
+  userSessions[userId].step = 'awaiting_private_message';
+  await sendMessage(userId, {
+    text: "📩 Enter private message to send:"
+  });
+}
+
+async function handleTextMessage(userId, text) {
+  const session = userSessions[userId];
+  if (!session) return;
+
+  switch(session.step) {
+    case 'awaiting_keywords':
+      session.keywords = text === 'empty' ? [] : 
+                       text.split(',').map(k => k.trim().toLowerCase());
+      return askForCommentReply(userId);
+      
+    case 'awaiting_comment_reply':
+      session.commentReply = text;
+      return askForPrivateMessage(userId);
+      
+    case 'awaiting_private_message':
+      session.privateMessage = text;
+      return confirmConfiguration(userId);
+      
+    case 'awaiting_confirmation':
+      if (text.toLowerCase() === 'confirm') {
+        await saveConfiguration(userId);
+      } else {
+        await sendMessage(userId, {text: "❌ Configuration cancelled"});
+      }
+      delete userSessions[userId];
+      return showMainMenu(userId);
+  }
+}
+
+async function confirmConfiguration(userId) {
+  const { postId, keywords, commentReply, privateMessage } = userSessions[userId];
+  await sendMessage(userId, {
+    text: `⚠️ Confirm configuration for post ${postId}:\n\n` +
+          `Keywords: ${keywords?.join(', ') || 'All'}\n` +
+          `Public Reply: ${commentReply}\n` +
+          `Private Message: ${privateMessage}\n\n` +
+          "Type 'confirm' to save or anything else to cancel."
+  });
+  userSessions[userId].step = 'awaiting_confirmation';
+}
+
+async function saveConfiguration(userId) {
+  const { postId, keywords, commentReply, privateMessage } = userSessions[userId];
+  activePosts[postId] = { keywords, commentReply, privateMessage };
+  await sendMessage(userId, {text: `✅ Auto-reply configured for post ${postId}`});
+  await notifyAdmin(`📝 New config for post ${postId}`);
+}
+
+/* =============== */
+/* COMMENT HANDLER */
+/* =============== */
+
+async function processChange(change) {
+  if (change.field === 'feed' && change.value.item === 'comment') {
+    const { post_id, comment_id, from, message } = change.value;
+    const config = activePosts[post_id];
+    
+    if (!config) return;
+
+    const shouldReply = !config.keywords.length || 
+                      config.keywords.some(kw => 
+                        message.toLowerCase().includes(kw.toLowerCase()));
+
+    if (shouldReply) {
+      try {
+        // Public reply
+        if (config.commentReply) {
+          await axios.post(
+            `https://graph.facebook.com/${API_VERSION}/${comment_id}/comments`,
+            { message: config.commentReply },
+            { params: { access_token: T1_ACCESS_TOKEN } }
+          );
+        }
+
+        // Private message
+        if (config.privateMessage) {
+          await sendMessage(from.id, { text: config.privateMessage });
+        }
+
+        await notifyAdmin(`💬 Replied to comment on post ${post_id}`);
+      } catch (error) {
+        await notifyAdmin(`❌ Failed to reply: ${error.message}`);
+      }
+    }
+  }
+}
+
+/* =============== */
+/* UTILITIES       */
+/* =============== */
+
+async function sendMessage(userId, message) {
+  try {
+    await axios.post(
+      `https://graph.facebook.com/${API_VERSION}/me/messages`,
+      {
+        recipient: { id: userId },
+        message
+      },
+      { params: { access_token: T2_ACCESS_TOKEN } }
+    );
+  } catch (error) {
+    console.error("Messaging error:", error.response?.data);
+    throw error;
+  }
+}
+
+async function setupGetStartedButton() {
+  await axios.post(
+    `https://graph.facebook.com/${API_VERSION}/me/messenger_profile`,
+    { get_started: { payload: "GET_STARTED" } },
+    { params: { access_token: T2_ACCESS_TOKEN } }
+  );
+}
+
+// Health monitoring
+setInterval(async () => {
+  try {
+    const response = await axios.get(
+      `https://graph.facebook.com/${API_VERSION}/me/subscribed_apps`,
+      { params: { access_token: T1_ACCESS_TOKEN } }
+    );
+    const subs = response.data.data[0]?.subscribed_fields || [];
+    await notifyAdmin(`🩺 Health Check\nActive posts: ${Object.keys(activePosts).length}\nSubscriptions: ${subs.join(', ')}`);
+  } catch (error) {
+    await notifyAdmin(`⚠️ Health check failed: ${error.message}`);
+  }
+}, 21600000); // 6 hours
