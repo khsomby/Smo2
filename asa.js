@@ -36,7 +36,7 @@ async function setupWebhookSubscription() {
         // Subscribe to feed changes (comments)
         await axios.post(`https://graph.facebook.com/${API_VERSION}/me/subscribed_apps`, {
             subscribed_fields: ['feed'],
-            access_token: T1_ACCESS_TOKEN
+            access_token: T2_ACCESS_TOKEN
         });
         console.log('Successfully subscribed to feed changes');
     } catch (error) {
