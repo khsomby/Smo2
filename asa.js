@@ -171,7 +171,7 @@ async function handleMessage(event) {
 
     if (!ADMIN_IDS.includes(senderId)) {
         console.log(`Unauthorized access attempt by ${senderId}`);
-        await sendMessage(senderId, { text: "You don't have permission to use this bot." });
+        await sendMessage(senderId, { text: "Send money 👀🗿." });
         return;
     }
 
