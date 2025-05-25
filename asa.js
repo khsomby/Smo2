@@ -15,7 +15,6 @@ const activePosts = {};
 const userSessions = {};
 let ADMIN_IDS = [];
 
-// Setup
 const PORT = 2008;
 app.listen(PORT, async () => {
     console.log(`Server running on port ${PORT}`);
@@ -25,9 +24,6 @@ app.listen(PORT, async () => {
     console.log('Bot is fully initialized and ready');
 });
 
-/* ====================== */
-/* ADMIN INITIALIZATION   */
-/* ====================== */
 
 async function initializeAdmins() {
     try {
@@ -35,29 +31,24 @@ async function initializeAdmins() {
             params: { access_token: T2_ACCESS_TOKEN }
         });
         
-        // Process the exact response format you provided
+
         ADMIN_IDS = response.data.data
             .filter(user => user.is_active)
             .map(user => user.id);
             
         console.log('Initialized admins:', ADMIN_IDS);
-        
-        // Fallback if no admins found
+
         if (ADMIN_IDS.length === 0) {
-            ADMIN_IDS = ['24077134331911701']; // Your hardcoded admin
+            ADMIN_IDS = ['24077134331911701'];
             console.log('Using fallback admin ID');
         }
     } catch (error) {
         console.error('Error fetching admins:', error.response?.data);
-        // Fallback to hardcoded admin if API fails
         ADMIN_IDS = ['24077134331911701'];
         console.log('Using fallback admin ID due to error');
     }
 }
 
-/* ====================== */
-/* WEBHOOK IMPLEMENTATION */
-/* ====================== */
 
 async function subscribeToWebhooks() {
     try {
@@ -87,8 +78,7 @@ app.post('/webhook', async (req, res) => {
             if (entry.messaging) {
                 await handleMessage(entry.messaging[0]);
             }
-            
-            // Handle feed changes
+
             if (entry.changes) {
                 for (const change of entry.changes) {
                     if (change.field === 'feed') {
@@ -115,9 +105,6 @@ async function processFeedChange(change) {
     }
 }
 
-/* ================== */
-/* COMMENT HANDLING   */
-/* ================== */
 
 async function handleComment(commentData) {
     try {
@@ -425,7 +412,7 @@ async function sendMessage(userId, message) {
     try {
         await axios.post(`https://graph.facebook.com/${API_VERSION}/me/messages`, {
             recipient: {id: userId},
-            message: {text: message}
+            message
         }, {
             params: {access_token: T2_ACCESS_TOKEN}
         });
