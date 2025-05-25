@@ -58,7 +58,7 @@ const bodyParser = require('body-parser');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const { Octokit } = require('@octokit/rest');
+import { Octokit } from "@octokit/rest";
 
 const app = express();
 app.use(bodyParser.json());
