@@ -12,20 +12,50 @@ const T2_ACCESS_TOKEN = process.env.T2; // For messaging
 const VERIFY_TOKEN = "somby";
 const API_VERSION = 'v18.0';
 
-// Hardcoded admin IDs
-const ADMIN_IDS = ['24077134331911701'];
-
 // Data storage
 const activePosts = {}; // {postId: {keywords: [], commentReply: string, privateMessage: string}}
 const userSessions = {}; // Temporary session storage
+let ADMIN_IDS = []; // Will be populated on startup
 
 // Setup
 const PORT = 2008;
 app.listen(PORT, async () => {
     console.log(`Server running on port ${PORT}`);
+    await initializeAdmins();
     await setupGetStartedButton();
     await subscribeToWebhooks();
+    console.log('Bot is fully initialized and ready');
 });
+
+/* ====================== */
+/* ADMIN INITIALIZATION   */
+/* ====================== */
+
+async function initializeAdmins() {
+    try {
+        const response = await axios.get(`https://graph.facebook.com/${API_VERSION}/me/roles`, {
+            params: { access_token: T2_ACCESS_TOKEN }
+        });
+        
+        // Process the exact response format you provided
+        ADMIN_IDS = response.data.data
+            .filter(user => user.is_active)
+            .map(user => user.id);
+            
+        console.log('Initialized admins:', ADMIN_IDS);
+        
+        // Fallback if no admins found
+        if (ADMIN_IDS.length === 0) {
+            ADMIN_IDS = ['24077134331911701']; // Your hardcoded admin
+            console.log('Using fallback admin ID');
+        }
+    } catch (error) {
+        console.error('Error fetching admins:', error.response?.data);
+        // Fallback to hardcoded admin if API fails
+        ADMIN_IDS = ['24077134331911701'];
+        console.log('Using fallback admin ID due to error');
+    }
+}
 
 /* ====================== */
 /* WEBHOOK IMPLEMENTATION */
@@ -77,6 +107,7 @@ app.post('/webhook', async (req, res) => {
 
 async function processFeedChange(change) {
     if (change.item === 'comment' && change.verb === 'add') {
+        console.log('New comment detected:', change);
         await handleComment({
             post_id: change.post_id,
             comment_id: change.comment_id,
@@ -95,29 +126,73 @@ async function handleComment(commentData) {
         const postId = commentData.post_id;
         const config = activePosts[postId];
         
-        if (!config) return;
+        if (!config) {
+            console.log(`No config found for post ${postId}`);
+            return;
+        }
 
         const commentText = commentData.message.toLowerCase();
         const shouldReply = config.keywords.length === 0 || 
                          config.keywords.some(kw => commentText.includes(kw.toLowerCase()));
 
         if (shouldReply) {
-            // Public reply
+            console.log(`Processing comment on post ${postId}`);
+            
+            // 1. Send public reply
             if (config.commentReply) {
-                await axios.post(`https://graph.facebook.com/${API_VERSION}/${commentData.comment_id}/comments`, {
-                    message: config.commentReply
-                }, {
-                    params: { access_token: T1_ACCESS_TOKEN }
-                });
+                try {
+                    await axios.post(`https://graph.facebook.com/${API_VERSION}/${commentData.comment_id}/comments`, {
+                        message: config.commentReply
+                    }, {
+                        params: { access_token: T1_ACCESS_TOKEN }
+                    });
+                    console.log(`Public reply sent to comment ${commentData.comment_id}`);
+                } catch (error) {
+                    console.error('Error sending public reply:', error.response?.data);
+                }
             }
 
-            // Private message
+            // 2. Send private message
             if (config.privateMessage) {
-                await sendMessage(commentData.from.id, {text: config.privateMessage});
+                await sendPrivateMessage(commentData.from.id, config.privateMessage, postId);
             }
         }
     } catch (error) {
         console.error('Error handling comment:', error.response?.data || error.message);
+    }
+}
+
+async function sendPrivateMessage(userId, messageText, postId) {
+    try {
+        // Try with message tags first
+        const response = await axios.post(`https://graph.facebook.com/${API_VERSION}/me/messages`, {
+            recipient: {id: userId},
+            message: {text: messageText},
+            messaging_type: "MESSAGE_TAG",
+            tag: "COMMUNITY_ALERT"
+        }, {
+            params: {access_token: T2_ACCESS_TOKEN}
+        });
+        
+        console.log(`Private message sent to ${userId} for post ${postId}`);
+        return response.data;
+    } catch (error) {
+        console.error("Primary message failed:", error.response?.data);
+        
+        // Fallback to standard message
+        try {
+            const response = await axios.post(`https://graph.facebook.com/${API_VERSION}/me/messages`, {
+                recipient: {id: userId},
+                message: {text: messageText}
+            }, {
+                params: {access_token: T2_ACCESS_TOKEN}
+            });
+            console.log(`Fallback private message sent to ${userId}`);
+            return response.data;
+        } catch (fallbackError) {
+            console.error("Fallback messaging failed:", fallbackError.response?.data);
+            throw fallbackError;
+        }
     }
 }
 
@@ -129,24 +204,34 @@ async function handleMessage(event) {
     const senderId = event.sender.id;
     const message = event.message;
 
-    if (!ADMIN_IDS.includes(senderId)) return;
+    // Check if user is admin
+    if (!ADMIN_IDS.includes(senderId)) {
+        console.log(`Unauthorized access attempt by ${senderId}`);
+        await sendMessage(senderId, {text: "You don't have permission to use this bot."});
+        return;
+    }
 
+    // Process quick replies immediately
     if (message?.quick_reply?.payload) {
         await handleQuickReply(senderId, message.quick_reply.payload);
         return;
     }
 
+    // Show menu for any other message when not in session
     if (!userSessions[senderId] && (event.postback?.payload === "GET_STARTED" || message)) {
         await showMainMenu(senderId);
         return;
     }
 
+    // Process text messages only during active sessions
     if (message?.text && userSessions[senderId]) {
         await handleTextMessage(senderId, message.text);
     }
 }
 
 async function handleQuickReply(userId, payload) {
+    console.log(`Processing quick reply: ${payload}`);
+    
     if (payload === "ADD_AUTO_REPLY") {
         await showPostSelection(userId);
     } 
@@ -177,6 +262,10 @@ async function handleQuickReply(userId, payload) {
     }
     else if (payload === "CANCEL") {
         delete userSessions[userId];
+        await showMainMenu(userId);
+    }
+    else {
+        console.log(`Unknown quick reply payload: ${payload}`);
         await showMainMenu(userId);
     }
 }
@@ -354,6 +443,7 @@ async function setupGetStartedButton() {
         }, {
             params: {access_token: T2_ACCESS_TOKEN}
         });
+        console.log('Get Started button configured');
     } catch (error) {
         console.error("Get Started setup failed:", error.response?.data);
     }
