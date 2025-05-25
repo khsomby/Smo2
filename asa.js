@@ -6,16 +6,14 @@ const axios = require('axios');
 const app = express();
 app.use(bodyParser.json());
 
-// Configuration
-const T1_ACCESS_TOKEN = process.env.T1; // For feed/comments
-const T2_ACCESS_TOKEN = process.env.T2; // For messaging
+const T1_ACCESS_TOKEN = process.env.T1;
+const T2_ACCESS_TOKEN = process.env.T2;
 const VERIFY_TOKEN = "somby";
-const API_VERSION = 'v18.0';
+const API_VERSION = 'v21.0';
 
-// Data storage
-const activePosts = {}; // {postId: {keywords: [], commentReply: string, privateMessage: string}}
-const userSessions = {}; // Temporary session storage
-let ADMIN_IDS = []; // Will be populated on startup
+const activePosts = {};
+const userSessions = {};
+let ADMIN_IDS = [];
 
 // Setup
 const PORT = 2008;
@@ -427,7 +425,7 @@ async function sendMessage(userId, message) {
     try {
         await axios.post(`https://graph.facebook.com/${API_VERSION}/me/messages`, {
             recipient: {id: userId},
-            message
+            message: {text: message}
         }, {
             params: {access_token: T2_ACCESS_TOKEN}
         });
