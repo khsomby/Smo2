@@ -1,31 +1,3 @@
-require('dotenv').config();
-const express = require('express');
-const bodyParser = require('body-parser');
-const axios = require('axios');
-const { initializeApp } = require('firebase/app');
-const { getDatabase, ref, set, get, update, remove } = require('firebase/database');
-
-const firebaseConfig = {
-  apiKey: "AIzaSyAFmvRhf_gJbwhY4RpydWPcfhuHh-aNhmE",
-  authDomain: "my-bot-fb3af.firebaseapp.com",
-  projectId: "my-bot-fb3af",
-  storageBucket: "my-bot-fb3af.appspot.com",
-  messagingSenderId: "244355842253",
-  appId: "1:244355842253:web:2da1ab5cc17d3c2d25e984",
-  measurementId: "G-ST1VBYJ7GC"
-};
-
-const firebaseApp = initializeApp(firebaseConfig);
-const db = getDatabase(firebaseApp);
-
-const app = express();
-app.use(bodyParser.json());
-
-
-const T1_MESSAGE_TOKEN = process.env.T2;
-const VERIFY_TOKEN = "somby";
-
-
 const LANGUAGES = [
   { code: 'mg', name: 'Malagasy' },
   { code: 'en', name: 'Anglais' },
@@ -79,6 +51,83 @@ const LANGUAGES = [
   { code: 'rw', name: 'Kinyarwanda' }
 ];
 
+
+require('dotenv').config();
+const express = require('express');
+const bodyParser = require('body-parser');
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+const { Octokit } = require('@octokit/rest');
+
+const app = express();
+app.use(bodyParser.json());
+
+const octokit = new Octokit({
+  auth: process.env.GITHUB_TOKEN,
+  userAgent: 'FB-Translation-Bot'
+});
+
+const REPO_OWNER = process.env.GITHUB_REPO_OWNER;
+const REPO_NAME = process.env.GITHUB_REPO_NAME;
+const DATA_FILE = 'user_data.json';
+
+const T1_MESSAGE_TOKEN = process.env.T2;
+const VERIFY_TOKEN = "somby";
+let userData = {};
+
+// Load data from GitHub
+async function loadUserData() {
+  try {
+    const { data } = await octokit.repos.getContent({
+      owner: REPO_OWNER,
+      repo: REPO_NAME,
+      path: DATA_FILE
+    });
+    const content = Buffer.from(data.content, 'base64').toString();
+    userData = JSON.parse(content);
+  } catch (error) {
+    if (error.status === 404) {
+      // File doesn't exist yet, initialize empty data
+      userData = {};
+      await saveUserData();
+    } else {
+      console.error('Error loading user data:', error);
+    }
+  }
+}
+
+// Save data to GitHub
+async function saveUserData() {
+  try {
+    const content = Buffer.from(JSON.stringify(userData, null, 2)).toString('base64');
+    
+    let sha;
+    try {
+      const { data } = await octokit.repos.getContent({
+        owner: REPO_OWNER,
+        repo: REPO_NAME,
+        path: DATA_FILE
+      });
+      sha = data.sha;
+    } catch (e) {
+      sha = null; // File doesn't exist yet
+    }
+
+    await octokit.repos.createOrUpdateFileContents({
+      owner: REPO_OWNER,
+      repo: REPO_NAME,
+      path: DATA_FILE,
+      message: 'Update user data',
+      content: content,
+      sha: sha
+    });
+  } catch (error) {
+    console.error('Error saving user data:', error);
+  }
+}
+
+// Messenger API Helper
 async function callMessengerAPI(endpoint, data) {
   try {
     const response = await axios.post(`https://graph.facebook.com/v19.0/${endpoint}`, data, {
@@ -91,6 +140,7 @@ async function callMessengerAPI(endpoint, data) {
   }
 }
 
+// Admin Check
 async function isAdmin(userId, pageId) {
   try {
     const response = await axios.get(`https://graph.facebook.com/v19.0/${pageId}/roles`, {
@@ -103,6 +153,7 @@ async function isAdmin(userId, pageId) {
   }
 }
 
+// Translation Function
 async function translateText(text, targetLang) {
   try {
     const response = await axios.get(`https://translate.googleapis.com/translate_a/single`, {
@@ -121,28 +172,35 @@ async function translateText(text, targetLang) {
   }
 }
 
-async function getUserData(userId) {
-  const userRef = ref(db, `users/${userId}`);
-  const snapshot = await get(userRef);
-  return snapshot.val() || {
-    id: userId,
-    isPremium: false,
-    dailyUsage: 0,
-    lastUsed: null,
-    phoneNumber: null,
-    paymentVerified: false,
-    isBlocked: false
-  };
+// Get User Data
+function getUserData(userId) {
+  if (!userData[userId]) {
+    const today = new Date().toISOString().split('T')[0];
+    userData[userId] = {
+      id: userId,
+      isPremium: false,
+      dailyUsage: 0,
+      lastUsed: today,
+      phoneNumber: null,
+      paymentVerified: false,
+      isBlocked: false,
+      targetLanguage: null
+    };
+  }
+  return userData[userId];
 }
 
+// Update User Data
 async function updateUserData(userId, data) {
-  const userRef = ref(db, `users/${userId}`);
-  await update(userRef, data);
+  const user = getUserData(userId);
+  userData[userId] = { ...user, ...data };
+  await saveUserData();
 }
 
+// Handle Messages
 async function handleMessage(senderId, message, pageId) {
-  const user = await getUserData(senderId);
-  
+  const user = getUserData(senderId);
+
   if (user.isBlocked) {
     await callMessengerAPI('me/messages', {
       recipient: { id: senderId },
@@ -151,17 +209,20 @@ async function handleMessage(senderId, message, pageId) {
     return;
   }
 
+  // Reset daily usage if new day
   const today = new Date().toISOString().split('T')[0];
   if (user.lastUsed !== today) {
     await updateUserData(senderId, { dailyUsage: 0, lastUsed: today });
     user.dailyUsage = 0;
   }
 
-  if (message) {
+  // Handle premium upgrade
+  if (message.match(/payer|\d{10}/i)) {
     if (message.match(/\d{10}/)) {
       const phoneNumber = message.match(/\d{10}/)[0];
       await updateUserData(senderId, { phoneNumber });
       
+      // Notify admin
       await callMessengerAPI('me/messages', {
         recipient: { id: pageId },
         message: { 
@@ -259,6 +320,7 @@ async function handleMessage(senderId, message, pageId) {
   }
 }
 
+// Show language selection with pagination
 async function showLanguageSelection(userId, pageIndex) {
   const startIdx = pageIndex * 14;
   const endIdx = startIdx + 14;
@@ -295,7 +357,7 @@ async function showLanguageSelection(userId, pageIndex) {
   });
 }
 
-// Webhook
+// Webhook Endpoint
 app.post('/webhook', async (req, res) => {
   if (req.query['hub.verify_token'] === VERIFY_TOKEN) {
     return res.status(200).send(req.query['hub.challenge']);
@@ -389,7 +451,7 @@ app.post('/admin/action', async (req, res) => {
   }
 });
 
-// Setup
+// Setup Get Started Button
 async function setupGetStartedButton() {
   try {
     await callMessengerAPI('me/messenger_profile', {
@@ -399,6 +461,11 @@ async function setupGetStartedButton() {
           locale: "default",
           composer_input_disabled: false,
           call_to_actions: [
+            {
+              type: "postback",
+              title: "Changer la langue",
+              payload: "CHANGE_LANGUAGE"
+            },
             {
               type: "postback",
               title: "Passer à Premium",
@@ -414,9 +481,10 @@ async function setupGetStartedButton() {
   }
 }
 
-// Start Server
-const PORT = 2008;
-app.listen(PORT, () => {
+// Initialize and Start Server
+const PORT = process.env.PORT || 2008;
+app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
+  await loadUserData();
   setupGetStartedButton();
 });
