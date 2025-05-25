@@ -98,6 +98,8 @@ async function processFeedChange(change) {
     }
 }
 
+
+/*
 async function handleComment(commentData) {
     try {
         const postId = commentData.post_id;
@@ -128,6 +130,64 @@ async function handleComment(commentData) {
             if (config.privateMessage) {
                 await sendPrivateMessage(commentData.comment_id, config.privateMessage, postId);
             }
+        }
+    } catch (error) {
+        console.error('Error handling comment:', error.response?.data || error.message);
+    }
+}
+*/
+
+async function handleComment(commentData) {
+    try {
+        const postId = commentData.post_id;
+        const config = activePosts[postId];
+        if (!config) {
+            console.log(`No config found for post ${postId}`);
+            return;
+        }
+
+        // Fetch comment details to check if it's a top-level comment
+        const commentInfo = await axios.get(`https://graph.facebook.com/${API_VERSION}/${commentData.comment_id}`, {
+            params: {
+                access_token: T1_ACCESS_TOKEN,
+                fields: 'parent'
+            }
+        });
+
+        // Skip if it's a reply to another comment
+        if (commentInfo.data.parent) {
+            console.log(`Skipping reply comment: ${commentData.comment_id}`);
+            return;
+        }
+
+        const commentText = commentData.message?.toLowerCase() || '';
+        const shouldReply = config.keywords.length === 0 ||
+            config.keywords.some(kw => commentText.includes(kw.toLowerCase()));
+
+        if (!shouldReply) return;
+
+        // React to the comment
+        await axios.post(`https://graph.facebook.com/${API_VERSION}/${commentData.comment_id}/reactions`, null, {
+            params: {
+                access_token: T1_ACCESS_TOKEN,
+                type: 'LIKE' // or 'LOVE', 'WOW', etc.
+            }
+        });
+        console.log(`Reacted to comment ${commentData.comment_id}`);
+
+        // Public reply
+        if (config.commentReply) {
+            await axios.post(`https://graph.facebook.com/${API_VERSION}/${commentData.comment_id}/comments`, {
+                message: config.commentReply
+            }, {
+                params: { access_token: T1_ACCESS_TOKEN }
+            });
+            console.log(`Public reply sent to comment ${commentData.comment_id}`);
+        }
+
+        // Private message
+        if (config.privateMessage) {
+            await sendPrivateMessage(commentData.comment_id, config.privateMessage, postId);
         }
     } catch (error) {
         console.error('Error handling comment:', error.response?.data || error.message);
