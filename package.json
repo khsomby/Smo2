@@ -13,8 +13,7 @@
     "fs-extra": "^11.2.0",
     "gpti": "^1.0.5",
     "node-fetch": "2.6.7",
-    "dotenv": "16.5.0",
-    "@octokit/rest": "22.1.1"
+    "dotenv": "16.5.0"
   },
   "devDependencies": {},
   "engines": {
