@@ -224,8 +224,8 @@ async function updateUserData(userId, data) {
 
 // Show language selection with pagination
 async function showLanguageSelection(userId, pageIndex) {
-  const startIdx = pageIndex * 14;
-  const endIdx = startIdx + 14;
+  const startIdx = pageIndex * 12;
+  const endIdx = startIdx + 12;
   const languagesPage = LANGUAGES.slice(startIdx, endIdx);
 
   const quickReplies = languagesPage.map(lang => ({
