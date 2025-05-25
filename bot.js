@@ -7,7 +7,7 @@ const app = express();
 app.use(bodyParser.json());
 
 const T1_MESSAGE_TOKEN = process.env.T2;
-const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "somby";
+const VERIFY_TOKEN = "somby";
 
 const LANGUAGES = [
   { code: 'mg', name: 'Malagasy' },
@@ -22,9 +22,7 @@ const LANGUAGES = [
   { code: 'it', name: 'Italien' },
   { code: 'hi', name: 'Hindi' },
   { code: 'pt', name: 'Portugais' },
-  { code: 'ru', name: 'Russe' },
-  { code: 'bn', name: 'Bengali' },
-  { code: 'sw', name: 'Swahili' }
+  { code: 'ru', name: 'Russe' }
 ];
 
 // In-memory user data storage
