@@ -1,3 +1,20 @@
+require('dotenv').config();
+const express = require('express');
+const bodyParser = require('body-parser');
+const axios = require('axios');
+
+const app = express();
+app.use(bodyParser.json());
+
+// Configuration
+const T1_MESSAGE_TOKEN = process.env.T2;
+const VERIFY_TOKEN = "somby";
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+const REPO_OWNER = process.env.GITHUB_REPO_OWNER;
+const REPO_NAME = process.env.GITHUB_REPO_NAME;
+const DATA_FILE = 'user_data.json';
+
+// 50 Supported Languages
 const LANGUAGES = [
   { code: 'mg', name: 'Malagasy' },
   { code: 'en', name: 'Anglais' },
@@ -51,44 +68,42 @@ const LANGUAGES = [
   { code: 'rw', name: 'Kinyarwanda' }
 ];
 
-
-require('dotenv').config();
-const express = require('express');
-const bodyParser = require('body-parser');
-const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
-const Octokit = require('@octokit/rest');
-
-const app = express();
-app.use(bodyParser.json());
-
-const octokit = new Octokit({
-  auth: process.env.GITHUB_TOKEN,
-  userAgent: 'FB-Translation-Bot'
-});
-
-const REPO_OWNER = process.env.GITHUB_REPO_OWNER;
-const REPO_NAME = process.env.GITHUB_REPO_NAME;
-const DATA_FILE = 'user_data.json';
-
-const T1_MESSAGE_TOKEN = process.env.T2;
-const VERIFY_TOKEN = "somby";
+// User data storage
 let userData = {};
 
-// Load data from GitHub
+// GitHub API Helper
+async function githubAPI(method, endpoint, data = {}) {
+  try {
+    const response = await axios({
+      method,
+      url: `https://api.github.com/${endpoint}`,
+      headers: {
+        'Authorization': `token ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'FB-Translation-Bot'
+      },
+      data
+    });
+    return response.data;
+  } catch (error) {
+    console.error('GitHub API Error:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+// Load user data from GitHub
 async function loadUserData() {
   try {
-    const { data } = await octokit.repos.getContent({
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-      path: DATA_FILE
-    });
+    const data = await githubAPI(
+      'GET',
+      `repos/${REPO_OWNER}/${REPO_NAME}/contents/${DATA_FILE}`
+    );
     const content = Buffer.from(data.content, 'base64').toString();
     userData = JSON.parse(content);
+    console.log('User data loaded from GitHub');
   } catch (error) {
-    if (error.status === 404) {
-      // File doesn't exist yet, initialize empty data
+    if (error.response?.status === 404) {
+      console.log('Creating new user data file');
       userData = {};
       await saveUserData();
     } else {
@@ -97,31 +112,33 @@ async function loadUserData() {
   }
 }
 
-// Save data to GitHub
+// Save user data to GitHub
 async function saveUserData() {
   try {
     const content = Buffer.from(JSON.stringify(userData, null, 2)).toString('base64');
     
+    // Check if file exists to get SHA
     let sha;
     try {
-      const { data } = await octokit.repos.getContent({
-        owner: REPO_OWNER,
-        repo: REPO_NAME,
-        path: DATA_FILE
-      });
-      sha = data.sha;
+      const fileInfo = await githubAPI(
+        'GET',
+        `repos/${REPO_OWNER}/${REPO_NAME}/contents/${DATA_FILE}`
+      );
+      sha = fileInfo.sha;
     } catch (e) {
       sha = null; // File doesn't exist yet
     }
 
-    await octokit.repos.createOrUpdateFileContents({
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-      path: DATA_FILE,
-      message: 'Update user data',
-      content: content,
-      sha: sha
-    });
+    await githubAPI(
+      'PUT',
+      `repos/${REPO_OWNER}/${REPO_NAME}/contents/${DATA_FILE}`,
+      {
+        message: 'Update user data',
+        content: content,
+        sha: sha
+      }
+    );
+    console.log('User data saved to GitHub');
   } catch (error) {
     console.error('Error saving user data:', error);
   }
@@ -130,41 +147,49 @@ async function saveUserData() {
 // Messenger API Helper
 async function callMessengerAPI(endpoint, data) {
   try {
-    const response = await axios.post(`https://graph.facebook.com/v19.0/${endpoint}`, data, {
-      params: { access_token: T1_MESSAGE_TOKEN }
-    });
+    const response = await axios.post(
+      `https://graph.facebook.com/v19.0/${endpoint}`,
+      data,
+      { params: { access_token: T1_MESSAGE_TOKEN } }
+    );
     return response.data;
   } catch (error) {
-    console.error('API Error:', error.response?.data || error.message);
+    console.error('Messenger API Error:', error.response?.data || error.message);
     throw error;
   }
 }
 
-// Admin Check
+// Check if user is admin
 async function isAdmin(userId, pageId) {
   try {
-    const response = await axios.get(`https://graph.facebook.com/v19.0/${pageId}/roles`, {
-      params: { access_token: T1_MESSAGE_TOKEN }
-    });
-    return response.data.data.some(role => role.user.id === userId && role.role === 'ADMIN');
+    const response = await axios.get(
+      `https://graph.facebook.com/v19.0/${pageId}/roles`,
+      { params: { access_token: T1_MESSAGE_TOKEN } }
+    );
+    return response.data.data.some(role => 
+      role.user.id === userId && role.role === 'ADMIN'
+    );
   } catch (error) {
     console.error('Admin check error:', error);
     return false;
   }
 }
 
-// Translation Function
+// Translation function
 async function translateText(text, targetLang) {
   try {
-    const response = await axios.get(`https://translate.googleapis.com/translate_a/single`, {
-      params: {
-        client: 'gtx',
-        sl: 'auto',
-        tl: targetLang,
-        dt: 't',
-        q: text
+    const response = await axios.get(
+      'https://translate.googleapis.com/translate_a/single',
+      {
+        params: {
+          client: 'gtx',
+          sl: 'auto',
+          tl: targetLang,
+          dt: 't',
+          q: text
+        }
       }
-    });
+    );
     return response.data[0][0][0];
   } catch (error) {
     console.error('Translation error:', error.message);
@@ -172,7 +197,7 @@ async function translateText(text, targetLang) {
   }
 }
 
-// Get User Data
+// Get user data
 function getUserData(userId) {
   if (!userData[userId]) {
     const today = new Date().toISOString().split('T')[0];
@@ -190,14 +215,51 @@ function getUserData(userId) {
   return userData[userId];
 }
 
-// Update User Data
+// Update user data
 async function updateUserData(userId, data) {
   const user = getUserData(userId);
   userData[userId] = { ...user, ...data };
   await saveUserData();
 }
 
-// Handle Messages
+// Show language selection with pagination
+async function showLanguageSelection(userId, pageIndex) {
+  const startIdx = pageIndex * 14;
+  const endIdx = startIdx + 14;
+  const languagesPage = LANGUAGES.slice(startIdx, endIdx);
+
+  const quickReplies = languagesPage.map(lang => ({
+    content_type: "text",
+    title: lang.name,
+    payload: `LANG_${lang.code}`
+  }));
+
+  // Add pagination buttons
+  if (pageIndex > 0) {
+    quickReplies.push({
+      content_type: "text",
+      title: "← Précédent",
+      payload: `LANG_PREV_${pageIndex - 1}`
+    });
+  }
+  if (endIdx < LANGUAGES.length) {
+    quickReplies.push({
+      content_type: "text",
+      title: "Suivant →",
+      payload: `LANG_NEXT_${pageIndex + 1}`
+    });
+  }
+
+  await callMessengerAPI('me/messages', {
+    recipient: { id: userId },
+    message: {
+      text: "Choisissez une langue cible:",
+      quick_replies: quickReplies
+    }
+  });
+}
+
+// Handle incoming messages
 async function handleMessage(senderId, message, pageId) {
   const user = getUserData(senderId);
 
@@ -252,7 +314,7 @@ async function handleMessage(senderId, message, pageId) {
     return;
   }
 
-  // Check word limit
+  // Check word limit for free users
   if (!user.isPremium && user.dailyUsage >= 100) {
     await callMessengerAPI('me/messages', {
       recipient: { id: senderId },
@@ -320,44 +382,7 @@ async function handleMessage(senderId, message, pageId) {
   }
 }
 
-// Show language selection with pagination
-async function showLanguageSelection(userId, pageIndex) {
-  const startIdx = pageIndex * 14;
-  const endIdx = startIdx + 14;
-  const languagesPage = LANGUAGES.slice(startIdx, endIdx);
-
-  const quickReplies = languagesPage.map(lang => ({
-    content_type: "text",
-    title: lang.name,
-    payload: `LANG_${lang.code}`
-  }));
-
-  // Add pagination buttons
-  if (pageIndex > 0) {
-    quickReplies.push({
-      content_type: "text",
-      title: "← Précédent",
-      payload: `LANG_PREV_${pageIndex - 1}`
-    });
-  }
-  if (endIdx < LANGUAGES.length) {
-    quickReplies.push({
-      content_type: "text",
-      title: "Suivant →",
-      payload: `LANG_NEXT_${pageIndex + 1}`
-    });
-  }
-
-  await callMessengerAPI('me/messages', {
-    recipient: { id: userId },
-    message: {
-      text: "Choisissez une langue cible:",
-      quick_replies: quickReplies
-    }
-  });
-}
-
-// Webhook Endpoint
+// Webhook endpoint
 app.post('/webhook', async (req, res) => {
   if (req.query['hub.verify_token'] === VERIFY_TOKEN) {
     return res.status(200).send(req.query['hub.challenge']);
@@ -409,7 +434,7 @@ app.post('/webhook', async (req, res) => {
   res.status(200).send('OK');
 });
 
-// Admin Endpoints
+// Admin endpoints
 app.post('/admin/action', async (req, res) => {
   const { adminId, userId, action, pageId } = req.body;
   
@@ -475,9 +500,9 @@ async function setupGetStartedButton() {
         }
       ]
     });
-    console.log("Messenger profile set up");
+    console.log("Get Started button set up successfully");
   } catch (error) {
-    console.error("Setup error:", error.response?.data || error.message);
+    console.error("Error setting up Get Started button:", error.response?.data || error.message);
   }
 }
 
