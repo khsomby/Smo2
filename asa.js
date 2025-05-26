@@ -49,7 +49,7 @@ async function initializeAdmins() {
 async function subscribeToWebhooks() {
     try {
         await axios.post(`https://graph.facebook.com/${API_VERSION}/me/subscribed_apps`, {
-            subscribed_fields: ['feed'],
+            subscribed_fields: ['feed', 'messages'],
             access_token: T1_ACCESS_TOKEN
         });
         console.log('Successfully subscribed to webhooks');
