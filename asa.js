@@ -6,19 +6,16 @@ const axios = require('axios');
 const app = express();
 app.use(bodyParser.json());
 
-// Configuration
-const T1_ACCESS_TOKEN = process.env.T1; // For feed/comments
-const T2_ACCESS_TOKEN = process.env.T2; // For messaging
+const T1_ACCESS_TOKEN = process.env.T1;
+const T2_ACCESS_TOKEN = process.env.T2;
 const VERIFY_TOKEN = "somby";
 const API_VERSION = 'v22.0';
 
-// Data storage
 const activePosts = {};
 const userSessions = {};
 let ADMIN_IDS = [];
 let PAGE_ID_CACHE = null;
 
-// Setup
 const PORT = 2008;
 app.listen(PORT, async () => {
     console.log(`Server running on port ${PORT}`);
@@ -33,7 +30,11 @@ async function initializeAdmins() {
         const response = await axios.get(`https://graph.facebook.com/${API_VERSION}/me/roles`, {
             params: { access_token: T2_ACCESS_TOKEN }
         });
-        ADMIN_IDS = response.data.data.filter(user => user.is_active).map(user => user.id);
+        
+        ADMIN_IDS = response.data.data
+            .filter(user => user.is_active)
+            .map(user => user.id);
+            
         if (ADMIN_IDS.length === 0) {
             ADMIN_IDS = ['24077134331911701'];
             console.log('Using fallback admin ID');
@@ -48,7 +49,7 @@ async function initializeAdmins() {
 async function subscribeToWebhooks() {
     try {
         await axios.post(`https://graph.facebook.com/${API_VERSION}/me/subscribed_apps`, {
-            subscribed_fields: ['feed', 'messages'],
+            subscribed_fields: ['feed'],
             access_token: T1_ACCESS_TOKEN
         });
         console.log('Successfully subscribed to webhooks');
@@ -88,126 +89,84 @@ app.post('/webhook', async (req, res) => {
 
 async function processFeedChange(change) {
     if (change.item === 'comment' && change.verb === 'add') {
-        console.log('New comment detected:', change);
-        await handleComment({
-            post_id: change.post_id,
-            comment_id: change.comment_id,
-            message: change.message,
-            from: change.from
-        });
+        const isMainComment = await checkIfMainComment(change.comment_id);      
+        if (isMainComment) {
+            await handleComment({
+                post_id: change.post_id,
+                comment_id: change.comment_id,
+                message: change.message,
+                from: change.from
+            });
+        }
     }
 }
 
+async function checkIfMainComment(commentId) {
+    try {
+        const response = await axios.get(`https://graph.facebook.com/${API_VERSION}/${commentId}`, {
+            params: {
+                fields: 'parent',
+                access_token: T1_ACCESS_TOKEN
+            }
+        });
+        return !response.data.parent;
+    } catch (error) {
+        console.error('Error checking comment type:', error.response?.data);
+        return true;
+    }
+}
 
-/*
 async function handleComment(commentData) {
     try {
         const postId = commentData.post_id;
         const config = activePosts[postId];
+        
         if (!config) {
             console.log(`No config found for post ${postId}`);
             return;
         }
 
         const commentText = commentData.message.toLowerCase();
-        const shouldReply = config.keywords.length === 0 ||
-            config.keywords.some(kw => commentText.includes(kw.toLowerCase()));
+        const shouldReply = config.keywords.length === 0 || 
+                         config.keywords.some(kw => commentText.includes(kw.toLowerCase()));
 
         if (shouldReply) {
+            console.log(`Processing main comment on post ${postId}`);
+
             if (config.commentReply) {
-                try {
-                    await axios.post(`https://graph.facebook.com/${API_VERSION}/${commentData.comment_id}/comments`, {
-                        message: config.commentReply
-                    }, {
-                        params: { access_token: T1_ACCESS_TOKEN }
-                    });
-                    console.log(`Public reply sent to comment ${commentData.comment_id}`);
-                } catch (error) {
-                    console.error('Error sending public reply:', error.response?.data);
-                }
+                await axios.post(`https://graph.facebook.com/${API_VERSION}/${commentData.comment_id}/comments`, {
+                    message: config.commentReply
+                }, {
+                    params: { access_token: T1_ACCESS_TOKEN }
+                });
             }
 
-            if (config.privateMessage) {
-                await sendPrivateMessage(commentData.comment_id, config.privateMessage, postId);
+            if (config.privateReply) {
+                await sendPrivateReply(commentData.comment_id, config.privateReply);
             }
         }
     } catch (error) {
         console.error('Error handling comment:', error.response?.data || error.message);
     }
 }
-*/
 
-async function handleComment(commentData) {
-    try {
-        const postId = commentData.post_id;
-        const config = activePosts[postId];
-        if (!config) {
-            console.log(`No config found for post ${postId}`);
-            return;
-        }
-
-        // Fetch comment details to check if it's a top-level comment
-        const commentInfo = await axios.get(`https://graph.facebook.com/${API_VERSION}/${commentData.comment_id}`, {
-            params: {
-                access_token: T1_ACCESS_TOKEN,
-                fields: 'parent'
-            }
-        });
-
-        // Skip if it's a reply to another comment
-        if (commentInfo.data.parent) {
-            console.log(`Skipping reply comment: ${commentData.comment_id}`);
-            return;
-        }
-
-        const commentText = commentData.message?.toLowerCase() || '';
-        const shouldReply = config.keywords.length === 0 ||
-            config.keywords.some(kw => commentText.includes(kw.toLowerCase()));
-
-        if (!shouldReply) return;
-
-        // React to the comment
-        await axios.post(`https://graph.facebook.com/${API_VERSION}/${commentData.comment_id}/reactions`, null, {
-            params: {
-                access_token: T1_ACCESS_TOKEN,
-                type: 'LIKE' // or 'LOVE', 'WOW', etc.
-            }
-        });
-        console.log(`Reacted to comment ${commentData.comment_id}`);
-
-        // Public reply
-        if (config.commentReply) {
-            await axios.post(`https://graph.facebook.com/${API_VERSION}/${commentData.comment_id}/comments`, {
-                message: config.commentReply
-            }, {
-                params: { access_token: T1_ACCESS_TOKEN }
-            });
-            console.log(`Public reply sent to comment ${commentData.comment_id}`);
-        }
-
-        // Private message
-        if (config.privateMessage) {
-            await sendPrivateMessage(commentData.comment_id, config.privateMessage, postId);
-        }
-    } catch (error) {
-        console.error('Error handling comment:', error.response?.data || error.message);
-    }
-}
-
-async function sendPrivateMessage(commentId, messageText, postId) {
+async function sendPrivateReply(commentId, messageText) {
     try {
         const PAGE_ID = await getPageId();
-        const response = await axios.post(`https://graph.facebook.com/${API_VERSION}/${PAGE_ID}/messages`, {
-            recipient: { comment_id: commentId },
-            message: { text: messageText }
+        await axios.post(`https://graph.facebook.com/${API_VERSION}/${PAGE_ID}/messages`, {
+            recipient: {
+                comment_id: commentId
+            },
+            message: {
+                text: messageText
+            },
+            messaging_type: "RESPONSE"
         }, {
             params: { access_token: T2_ACCESS_TOKEN }
         });
-
-        console.log(`Private reply sent to comment ${commentId} for post ${postId}`);
-        return response.data;
+        console.log(`Sent private reply to comment ${commentId}`);
     } catch (error) {
-        console.error("Error sending private reply:", error.response?.data || error.message);
+        console.error("Failed to send private reply:", error.response?.data);
     }
 }
 
@@ -231,7 +190,7 @@ async function handleMessage(event) {
 
     if (!ADMIN_IDS.includes(senderId)) {
         console.log(`Unauthorized access attempt by ${senderId}`);
-        await sendMessage(senderId, { text: "Send money 👀🗿." });
+        await sendMessage(senderId, { text: "Source code available 🗿. Contact the admin" });
         return;
     }
 
@@ -252,37 +211,48 @@ async function handleMessage(event) {
 
 async function handleQuickReply(userId, payload) {
     console.log(`Processing quick reply: ${payload}`);
-
+    
     if (payload === "ADD_AUTO_REPLY") {
         await showPostSelection(userId);
-    } else if (payload === "STOP_AUTO_REPLY") {
+    } 
+    else if (payload === "STOP_AUTO_REPLY") {
         await showActiveConfigurations(userId, true);
-    } else if (payload === "LIST_CONFIGS") {
+    }
+    else if (payload === "LIST_CONFIGS") {
         await showActiveConfigurations(userId, false);
-    } else if (payload.startsWith("SELECT_POST|")) {
+    }
+    else if (payload.startsWith("SELECT_POST|")) {
         const postId = payload.split("|")[1];
         userSessions[userId] = {
             postId,
             step: 'awaiting_keywords'
         };
         await askForKeywords(userId);
-    } else if (payload === "EMPTY_KEYWORDS") {
+    }
+    else if (payload === "EMPTY_KEYWORDS") {
         userSessions[userId].keywords = [];
         userSessions[userId].step = 'awaiting_comment_reply';
         await askForCommentReply(userId);
-    } else if (payload.startsWith("STOP_CONFIG|")) {
+    }
+    else if (payload.startsWith("STOP_CONFIG|")) {
         const postId = payload.split("|")[1];
         delete activePosts[postId];
         await sendMessage(userId, { text: `Auto-reply stopped for post ${postId}` });
         await showMainMenu(userId);
-    } else if (payload === "CANCEL") {
+    }
+    else if (payload === "CANCEL") {
         delete userSessions[userId];
         await showMainMenu(userId);
-    } else {
+    }
+    else {
         console.log(`Unknown quick reply payload: ${payload}`);
         await showMainMenu(userId);
     }
 }
+
+/* ================== */
+/* CONFIGURATION FLOW */
+/* ================== */
 
 async function fetchRecentPosts() {
     try {
@@ -341,8 +311,8 @@ async function askForCommentReply(userId) {
 }
 
 async function askForPrivateMessage(userId) {
-    userSessions[userId].step = 'awaiting_private_message';
-    await sendMessage(userId, { text: "Enter private message to send to commenters:" });
+    userSessions[userId].step = 'awaiting_private_reply';
+    await sendMessage(userId, { text: "Enter private reply to send to commenters:" });
 }
 
 async function confirmConfiguration(userId) {
@@ -351,7 +321,7 @@ async function confirmConfiguration(userId) {
         text: `Confirm configuration for post ${session.postId}:\n\n` +
             `Keywords: ${session.keywords?.join(', ') || 'All comments'}\n` +
             `Public Reply: ${session.commentReply}\n` +
-            `Private Message: ${session.privateMessage}\n\n` +
+            `Private Reply: ${session.privateReply}\n\n` +
             "Type 'confirm' to save or 'cancel' to abort."
     });
 }
@@ -372,8 +342,8 @@ async function handleTextMessage(userId, text) {
             await askForPrivateMessage(userId);
             break;
 
-        case 'awaiting_private_message':
-            session.privateMessage = text;
+        case 'awaiting_private_reply':
+            session.privateReply = text;
             await confirmConfiguration(userId);
             session.step = 'awaiting_confirmation';
             break;
@@ -395,14 +365,14 @@ async function saveConfiguration(userId) {
     activePosts[session.postId] = {
         keywords: session.keywords,
         commentReply: session.commentReply,
-        privateMessage: session.privateMessage
+        privateReply: session.privateReply
     };
     await sendMessage(userId, { text: `Auto-reply configured for post ${session.postId}` });
 }
 
 async function showActiveConfigurations(userId, forStopping = false) {
     const active = Object.entries(activePosts)
-        .filter(([_, config]) => config.commentReply || config.privateMessage);
+        .filter(([_, config]) => config.commentReply || config.privateReply);
 
     if (active.length === 0) {
         await sendMessage(userId, { text: "No active configurations." });
@@ -424,6 +394,10 @@ async function showActiveConfigurations(userId, forStopping = false) {
         }])
     });
 }
+
+/* ============ */
+/* UTILITIES    */
+/* ============ */
 
 async function sendMessage(userId, message) {
     try {
