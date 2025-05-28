@@ -6,9 +6,9 @@ const axios = require('axios');
 const app = express();
 app.use(bodyParser.json());
 
-const T1_ACCESS_TOKEN = process.env.T1;
-const T2_ACCESS_TOKEN = process.env.T2;
-const VERIFY_TOKEN = "somby";
+const T1 = process.env.T1;
+const T2 = process.env.T2;
+const VER = "somby";
 const API_VERSION = 'v22.0';
 
 const activePosts = {};
@@ -28,7 +28,7 @@ app.listen(PORT, async () => {
 async function initializeAdmins() {
     try {
         const response = await axios.get(`https://graph.facebook.com/${API_VERSION}/me/roles`, {
-            params: { access_token: T2_ACCESS_TOKEN }
+            params: { access_token: T2 }
         });
         
         ADMIN_IDS = response.data.data
@@ -50,7 +50,7 @@ async function subscribeToWebhooks() {
     try {
         await axios.post(`https://graph.facebook.com/${API_VERSION}/me/subscribed_apps`, {
             subscribed_fields: ['feed', 'messages'],
-            access_token: T1_ACCESS_TOKEN
+            access_token: T1
         });
         console.log('Successfully subscribed to webhooks');
     } catch (error) {
@@ -59,7 +59,7 @@ async function subscribeToWebhooks() {
 }
 
 app.get('/webhook', (req, res) => {
-    if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === VERIFY_TOKEN) {
+    if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === VER) {
         res.status(200).send(req.query['hub.challenge']);
     } else {
         res.sendStatus(403);
@@ -106,7 +106,7 @@ async function checkIfMainComment(commentId) {
         const response = await axios.get(`https://graph.facebook.com/${API_VERSION}/${commentId}`, {
             params: {
                 fields: 'parent',
-                access_token: T1_ACCESS_TOKEN
+                access_token: T1
             }
         });
         return !response.data.parent;
@@ -137,7 +137,7 @@ async function handleComment(commentData) {
                 await axios.post(`https://graph.facebook.com/${API_VERSION}/${commentData.comment_id}/comments`, {
                     message: config.commentReply
                 }, {
-                    params: { access_token: T1_ACCESS_TOKEN }
+                    params: { access_token: T1 }
                 });
             }
 
@@ -162,7 +162,7 @@ async function sendPrivateReply(commentId, messageText) {
             },
             messaging_type: "RESPONSE"
         }, {
-            params: { access_token: T2_ACCESS_TOKEN }
+            params: { access_token: T2 }
         });
         console.log(`Sent private reply to comment ${commentId}`);
     } catch (error) {
@@ -174,7 +174,7 @@ async function getPageId() {
     if (PAGE_ID_CACHE) return PAGE_ID_CACHE;
     try {
         const response = await axios.get(`https://graph.facebook.com/${API_VERSION}/me`, {
-            params: { access_token: T2_ACCESS_TOKEN }
+            params: { access_token: T2 }
         });
         PAGE_ID_CACHE = response.data.id;
         return PAGE_ID_CACHE;
@@ -249,15 +249,11 @@ async function handleQuickReply(userId, payload) {
     }
 }
 
-/* ================== */
-/* CONFIGURATION FLOW */
-/* ================== */
-
 async function fetchRecentPosts() {
     try {
         const response = await axios.get(`https://graph.facebook.com/${API_VERSION}/me/posts`, {
             params: {
-                access_token: T1_ACCESS_TOKEN,
+                access_token: T1,
                 fields: 'id,message,created_time',
                 limit: 10
             }
@@ -394,17 +390,13 @@ async function showActiveConfigurations(userId, forStopping = false) {
     });
 }
 
-/* ============ */
-/* UTILITIES    */
-/* ============ */
-
 async function sendMessage(userId, message) {
     try {
         await axios.post(`https://graph.facebook.com/${API_VERSION}/me/messages`, {
             recipient: { id: userId },
             message
         }, {
-            params: { access_token: T2_ACCESS_TOKEN }
+            params: { access_token: T2 }
         });
     } catch (error) {
         console.error("Messaging error:", error.response?.data);
@@ -416,7 +408,7 @@ async function setupGetStartedButton() {
         await axios.post(`https://graph.facebook.com/${API_VERSION}/me/messenger_profile`, {
             get_started: { payload: "GET_STARTED" }
         }, {
-            params: { access_token: T2_ACCESS_TOKEN }
+            params: { access_token: T2 }
         });
         console.log('Get Started button configured');
     } catch (error) {
