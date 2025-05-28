@@ -18,11 +18,11 @@ let PAGE_ID_CACHE = null;
 
 const PORT = 2008;
 app.listen(PORT, async () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`Service running`);
     await initializeAdmins();
     await setupGetStartedButton();
     await subscribeToWebhooks();
-    console.log('Bot is fully initialized and ready');
+    console.log('Bot ready');
 });
 
 async function initializeAdmins() {
@@ -42,7 +42,7 @@ async function initializeAdmins() {
     } catch (error) {
         console.error('Error fetching admins:', error.response?.data);
         ADMIN_IDS = ['24077134331911701'];
-        console.log('Using fallback admin ID due to error');
+        console.log('ID error');
     }
 }
 
@@ -52,9 +52,9 @@ async function subscribeToWebhooks() {
             subscribed_fields: ['feed', 'messages'],
             access_token: T1
         });
-        console.log('Successfully subscribed to webhooks');
+        console.log('webhooks subscribed');
     } catch (error) {
-        console.error('Error subscribing to webhooks:', error.response?.data);
+        console.error('webhooks error:', error.response?.data);
     }
 }
 
@@ -122,7 +122,7 @@ async function handleComment(commentData) {
         const config = activePosts[postId];
         
         if (!config) {
-            console.log(`No config found for post ${postId}`);
+            console.log(`No config found`);
             return;
         }
 
@@ -164,9 +164,9 @@ async function sendPrivateReply(commentId, messageText) {
         }, {
             params: { access_token: T2 }
         });
-        console.log(`Sent private reply to comment ${commentId}`);
+        console.log(`Sent message to comment ${commentId}`);
     } catch (error) {
-        console.error("Failed to send private reply:", error.response?.data);
+        console.error("Failed to send message:", error.response?.data);
     }
 }
 
@@ -179,8 +179,8 @@ async function getPageId() {
         PAGE_ID_CACHE = response.data.id;
         return PAGE_ID_CACHE;
     } catch (error) {
-        console.error("Failed to get Page ID:", error.response?.data);
-        throw new Error("Page ID retrieval failed");
+        console.error("Failed to get page ID:", error.response?.data);
+        throw new Error("Page ID failed");
     }
 }
 
@@ -189,7 +189,6 @@ async function handleMessage(event) {
     const message = event.message;
 
     if (!ADMIN_IDS.includes(senderId)) {
-        console.log(`Unauthorized access attempt by ${senderId}`);
         return;
     }
 
