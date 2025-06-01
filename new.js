@@ -154,7 +154,7 @@ app.get('/setup', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3002;
+const PORT = 2008;
 app.listen(PORT, () => {
   console.log(`Messenger bot running on port ${PORT}`);
 });
