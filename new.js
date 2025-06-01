@@ -179,6 +179,6 @@ app.get('/setup', async (req, res) => {
   res.send('Get Started button configured.');
 });
 
-app.listen(3002, () => {
+app.listen(2008, () => {
   console.log('Messenger bot running on port 3002');
 });
