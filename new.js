@@ -72,7 +72,7 @@ async function sendTextWithRetry(recipientId, text, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
       await axios.post(
-        "https://graph.facebook.com/v17.0/me/messages",
+        "https://graph.facebook.com/v22.0/me/messages",
         {
           recipient: { id: recipientId },
           message: { text: text },
@@ -93,7 +93,7 @@ async function sendVideoWithRetry(recipientId, videoUrl, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
       await axios.post(
-        "https://graph.facebook.com/v17.0/me/messages",
+        "https://graph.facebook.com/v22.0/me/messages",
         {
           recipient: { id: recipientId },
           message: {
