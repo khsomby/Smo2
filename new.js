@@ -53,10 +53,10 @@ async function handleMessage(senderId, text) {
       return;
     }
 
-    const filtered = results.filter((v) => v.duration >= 600);
+    const filtered = results.filter((v) => v.duration >= 300);
 
     if (filtered.length === 0) {
-      await sendTextWithRetry(senderId, "❌ No videos longer than 10 minutes found.");
+      await sendTextWithRetry(senderId, "❌ No videos longer than 5 minutes found.");
       return;
     }
 
