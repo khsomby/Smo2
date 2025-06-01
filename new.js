@@ -54,7 +54,7 @@ async function handleMessage(senderId, text) {
         const filtered = videos.filter(v => {
             const mins = parseInt(v.duration);
             return mins >= 5 && mins <= 20;
-        }).slice(0, 20);
+        }).slice(0, 5);
 
         if (filtered.length === 0) {
             await sendText(senderId, "No videos found between 5 and 20 minutes.");
@@ -78,7 +78,7 @@ async function handleMessage(senderId, text) {
     }
 }
 
-async function sendText(recipientId, text, retries = 5) {
+async function sendText(recipientId, text, retries = 2) {
     for (let i = 0; i < retries; i++) {
         try {
             await axios.post(
