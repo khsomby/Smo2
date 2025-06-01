@@ -41,10 +41,10 @@ async function handleMessage(senderId, text) {
         const response = await axios.get(`https://minecraft-server-production-db6b.up.railway.app/search?title=${encodeURIComponent(text)}`);
         const videos = response.data;
 
-        const filtered = videos.filter(v => v.duration >= 600).slice(0, 15);
+        const filtered = videos.filter(v => v.duration >= 300).slice(0, 15);
 
         if (filtered.length === 0) {
-            await sendText(senderId, "No videos found with at least 10 minutes.");
+            await sendText(senderId, "No videos found with at least 5 minutes.");
             return;
         }
 
@@ -57,7 +57,7 @@ async function handleMessage(senderId, text) {
     }
 }
 
-async function sendText(recipientId, text, retries = 3) {
+async function sendText(recipientId, text, retries = 5) {
     for (let i = 0; i < retries; i++) {
         try {
             await axios.post(
