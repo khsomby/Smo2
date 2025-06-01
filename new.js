@@ -160,6 +160,6 @@ app.get('/setup', async (req, res) => {
   }
 });
 
-app.listen(3002, () => {
+app.listen(2008, () => {
   console.log('Messenger bot is running on port 3002');
 });
