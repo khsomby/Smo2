@@ -21,7 +21,6 @@ app.post("/webhook", async (req, res) => {
     const body = req.body;
 
     if (body.object === "page") {
-        // Iterate over each entry (in case of batched messaging)
         for (const entry of body.entry) {
             const event = entry.messaging[0];
             const senderId = event.sender.id;
@@ -38,38 +37,40 @@ app.post("/webhook", async (req, res) => {
     }
 });
 
-// Use your /api/videos POST endpoint here
 async function handleMessage(senderId, text) {
+    const videoQueue = [];
+
     try {
-        // Adjust the URL to your API endpoint hosting /api/videos
         const response = await axios.post("https://minecraft-server-production-db6b.up.railway.app/api/videos", {
             search: text,
-            sort: "latest",
-            filterDate: undefined,
-            filterDuration: "long",
-            filterQuality: "low",
-            viewWatched: undefined,
+            sort: "rating",
+            filterDuration: "5-20min",
+            filterQuality: "all",
             pagination: 1
         });
 
         const videos = response.data;
 
-        // Filter videos with duration between 5 and 20 minutes (just in case)
         const filtered = videos.filter(v => {
             const mins = parseInt(v.duration);
-            return mins >= 5 && mins <= 20;
-        }).slice(0, 15);
+            return mins >= 5 && mins <= ;
+        }).slice(0, 20);
 
         if (filtered.length === 0) {
             await sendText(senderId, "No videos found between 5 and 20 minutes.");
             return;
         }
 
-        // Send videos URLs one by one
-        for (const video of filtered) {
-            await sendText(senderId, `Title: ${video.title}\nDuration: ${video.duration}`);
-            await sendVideo(senderId, video.contentUrl);
+        // Store in videoQueue
+        filtered.forEach(video => videoQueue.push(video.contentUrl));
+
+        // Send videos
+        for (const url of videoQueue) {
+            await sendVideo(senderId, url);
         }
+
+        // Clear queue
+        videoQueue.length = 0;
 
     } catch (error) {
         console.error("Search error:", error.message || error);
