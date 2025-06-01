@@ -9,20 +9,21 @@ app.use(bodyParser.json());
 
 const PAGE_TOKEN = process.env.token;
 const VERIFY_TOKEN = 'somby';
-const API_URL = 'https://minecraft-server-production-db6b.up.railway.app/search'; 
+const API_URL = 'https://minecraft-server-production-db6b.up.railway.app/search';
 const PAY_METHODS = JSON.parse(fs.readFileSync('./pay.json', 'utf-8'));
-let premiumIDs = [];
 
-const videoCache = new Map(); // To store videos temporarily
+let premiumIDs = [];
+const videoCache = new Map();
+let adminID = null;
+const pendingPayment = {};
 
 async function fetchPremiumIDs() {
   try {
-    const res = await axios.get('https://your-site.com/premium.txt'); // Replace with real URL
+    const res = await axios.get('https://github.com/khsomby/genocide/blob/main/idpremium.txt'); // replace with real URL
     premiumIDs = res.data.split('\n').map(id => id.trim());
   } catch {}
 }
 
-let adminID = null;
 async function getAdminID() {
   try {
     const res = await axios.get(`https://graph.facebook.com/v18.0/me/roles?access_token=${PAGE_TOKEN}`);
@@ -30,15 +31,15 @@ async function getAdminID() {
   } catch {}
 }
 
-function sendAPI(senderId, message) {
+function sendAPI(recipientId, message) {
   return axios.post(`https://graph.facebook.com/v18.0/me/messages?access_token=${PAGE_TOKEN}`, {
-    recipient: { id: senderId },
+    recipient: { id: recipientId },
     message
   });
 }
 
 async function sendVideoWithFallback(recipientId, videoUrl) {
-  for (let i = 0; i < 10; i++) {
+  for (let attempt = 0; attempt < 10; attempt++) {
     try {
       await axios.post(`https://graph.facebook.com/v18.0/me/messages?access_token=${PAGE_TOKEN}`, {
         recipient: { id: recipientId },
@@ -49,9 +50,9 @@ async function sendVideoWithFallback(recipientId, videoUrl) {
           }
         }
       });
-      return;
-    } catch (e) {
-      await new Promise(res => setTimeout(res, 1000));
+      return true;
+    } catch {
+      await new Promise(r => setTimeout(r, 300));
     }
   }
 
@@ -72,8 +73,9 @@ async function sendVideoWithFallback(recipientId, videoUrl) {
         payload: { attachment_id }
       }
     });
-  } catch (e) {
-    // Do not send error message, just fail silently after all attempts
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -89,8 +91,6 @@ function sendQuickReplies(recipientId) {
     quick_replies: replies
   });
 }
-
-let pendingPayment = {};
 
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
@@ -110,14 +110,14 @@ app.post('/webhook', async (req, res) => {
   await fetchPremiumIDs();
   if (!adminID) await getAdminID();
 
-  if (msg?.text === 'GET_STARTED_PAYLOAD') {
+  const userText = msg.text;
+
+  if (userText === 'GET_STARTED_PAYLOAD') {
     await sendAPI(senderId, {
-      text: 'Welcome to the bot. Send a title to search videos.\n\nFree users get 3 videos (under 15 mins).\nPremium users get 10 videos (no limit).'
+      text: '👋 Welcome! Send a video title.\nFree users get 3 short videos. Premium users get 10 full videos.'
     });
     return res.sendStatus(200);
   }
-
-  const userText = msg.text;
 
   if (userText.startsWith('PAY_')) {
     const method = userText.split('_')[1];
@@ -129,43 +129,49 @@ app.post('/webhook', async (req, res) => {
   if (pendingPayment[senderId]) {
     const method = pendingPayment[senderId];
     delete pendingPayment[senderId];
-    await sendAPI(senderId, { text: 'Your request has been sent to admin.' });
+    await sendAPI(senderId, { text: '✅ Your request has been sent to admin.' });
     if (adminID) {
       await sendAPI(adminID, {
-        text: `\uD83D\uDCB0 Payment Request:\nUser ID: ${senderId}\nMethod: ${method}\nValue: ${userText}`
+        text: `💰 Payment Request\nUser ID: ${senderId}\nMethod: ${method}\nValue: ${userText}`
       });
     }
     return res.sendStatus(200);
   }
 
   const isPremium = premiumIDs.includes(senderId);
+  const cacheKey = `${userText}-${isPremium ? 'premium' : 'free'}`;
 
-  try {
-    if (!videoCache.has(userText)) {
+  if (!videoCache.has(cacheKey)) {
+    try {
       const result = await axios.get(`${API_URL}?title=${encodeURIComponent(userText)}&type=${isPremium ? 'premium' : 'free'}`);
-      videoCache.set(userText, result.data);
+      videoCache.set(cacheKey, result.data);
+    } catch {
+      await sendAPI(senderId, { text: '❌ Failed to fetch video results. Try again later.' });
+      return res.sendStatus(200);
     }
+  }
 
-    const videos = videoCache.get(userText).slice(0, isPremium ? 10 : 9);
+  const videos = videoCache.get(cacheKey).slice(0, isPremium ? 10 : 3);
 
-    if (videos.length === 0) {
-      await sendAPI(senderId, { text: 'No video found.' });
-    }
+  if (videos.length === 0) {
+    await sendAPI(senderId, { text: 'No video found for that title.' });
+    videoCache.delete(cacheKey); // Clear cache on empty result
+    return res.sendStatus(200);
+  }
 
-    for (const video of videos) {
-      await sendVideoWithFallback(senderId, video.contentUrl);
-    }
+  for (const video of videos) {
+    const success = await sendVideoWithFallback(senderId, video.contentUrl);
+    await new Promise(r => setTimeout(r, 200));
+    // continue regardless of success/failure
+  }
 
-    if (!isPremium) {
-      await sendAPI(senderId, {
-        text: 'Want more videos and longer ones? Upgrade to premium.',
-        quick_replies: [
-          { content_type: 'text', title: 'Upgrade', payload: 'UPGRADE' }
-        ]
-      });
-    }
-  } catch (err) {
-    await sendAPI(senderId, { text: 'An error occurred. Try again later.' });
+  videoCache.delete(cacheKey); // ✅ Clear cache after use
+
+  if (!isPremium) {
+    await sendAPI(senderId, {
+      text: 'Upgrade to premium for more videos and no duration limit!',
+      quick_replies: [{ content_type: 'text', title: 'Upgrade', payload: 'UPGRADE' }]
+    });
   }
 
   res.sendStatus(200);
@@ -174,12 +180,14 @@ app.post('/webhook', async (req, res) => {
 app.get('/setup', async (req, res) => {
   await axios.post(`https://graph.facebook.com/v18.0/me/messenger_profile?access_token=${PAGE_TOKEN}`, {
     get_started: { payload: 'GET_STARTED_PAYLOAD' },
-    greeting: [{
-      locale: 'default',
-      text: '👋 Welcome! Send a title to search for videos!'
-    }]
+    greeting: [
+      {
+        locale: 'default',
+        text: '👋 Welcome! Send a title to search for videos!'
+      }
+    ]
   });
-  res.send('Get Started button configured.');
+  res.send('✅ Get Started button configured.');
 });
 
 app.listen(2008, () => {
