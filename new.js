@@ -8,7 +8,7 @@ app.use(bodyParser.json());
 const PAGE_ACCESS_TOKEN = process.env.token;
 
 app.get("/webhook", (req, res) => {
-    if (req.query["hub.mode"] === "subscribe" && req.query["hub.verify_token"] === "heikx") {
+    if (req.query["hub.mode"] === "subscribe" && req.query["hub.verify_token"] === "somby") {
         res.status(200).send(req.query["hub.challenge"]);
     } else {
         res.sendStatus(403);
