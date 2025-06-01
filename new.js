@@ -9,157 +9,152 @@ app.use(bodyParser.json());
 const PAGE_TOKEN = process.env.token;
 const VERIFY_TOKEN = 'somby';
 const API_URL = 'https://minecraft-server-production-db6b.up.railway.app/search';
+const MAX_VIDEOS = 15;
 
-let adminID = null;
+// Map to temporarily store videos per user (key: senderId, value: array of videos)
+const userVideosCache = new Map();
 
-async function getAdminID() {
-  try {
-    const res = await axios.get(`https://graph.facebook.com/v18.0/me/roles?access_token=${PAGE_TOKEN}`);
-    adminID = res.data.data?.[0]?.user || null;
-  } catch (e) {
-    console.error('Failed to fetch admin ID:', e.message);
-  }
-}
-
-function sendAPI(senderId, message) {
+async function sendAPI(recipientId, message) {
   return axios.post(`https://graph.facebook.com/v18.0/me/messages?access_token=${PAGE_TOKEN}`, {
-    recipient: { id: senderId },
-    message
+    recipient: { id: recipientId },
+    message,
   });
 }
 
+// Send video with fallback method and return true if successful
 async function sendVideoWithFallback(recipientId, videoUrl) {
-  let success = false;
-
-  // Try up to 10 times to send via direct URL
-  for (let i = 0; i < 10; i++) {
-    try {
-      await axios.post(`https://graph.facebook.com/v18.0/me/messages?access_token=${PAGE_TOKEN}`, {
-        recipient: { id: recipientId },
-        message: {
-          attachment: {
-            type: 'video',
-            payload: { url: videoUrl, is_reusable: false }
-          }
-        }
-      });
-      success = true;
-      break;
-    } catch {
-      await new Promise(res => setTimeout(res, 500)); // small delay
-    }
-  }
-
-  // If not successful, try sending using attachment ID
-  if (!success) {
-    try {
-      const uploadRes = await axios.post(`https://graph.facebook.com/v18.0/me/message_attachments?access_token=${PAGE_TOKEN}`, {
-        message: {
-          attachment: {
-            type: 'video',
-            payload: { url: videoUrl, is_reusable: true }
-          }
-        }
-      });
-
-      const attachment_id = uploadRes.data.attachment_id;
-      await sendAPI(recipientId, {
+  // Try sending video URL first (direct URL method)
+  try {
+    await axios.post(`https://graph.facebook.com/v18.0/me/messages?access_token=${PAGE_TOKEN}`, {
+      recipient: { id: recipientId },
+      message: {
         attachment: {
           type: 'video',
-          payload: { attachment_id }
-        }
-      });
-    } catch {
-      // Silently fail and skip to next video
-    }
+          payload: { url: videoUrl, is_reusable: false },
+        },
+      },
+    });
+    return true; // success
+  } catch {
+    // direct URL method failed, fallback to attachment upload below
+  }
+
+  // Fallback: upload video attachment ID and send that
+  try {
+    const uploadRes = await axios.post(`https://graph.facebook.com/v18.0/me/message_attachments?access_token=${PAGE_TOKEN}`, {
+      message: {
+        attachment: {
+          type: 'video',
+          payload: { url: videoUrl, is_reusable: true },
+        },
+      },
+    });
+
+    const attachment_id = uploadRes.data.attachment_id;
+    if (!attachment_id) throw new Error('No attachment_id received');
+
+    await sendAPI(recipientId, {
+      attachment: {
+        type: 'video',
+        payload: { attachment_id },
+      },
+    });
+    return true; // success
+  } catch {
+    return false; // both methods failed
   }
 }
 
-function sendQuickReplies(recipientId) {
-  return sendAPI(recipientId, {
-    text: 'Choose an option:',
-    quick_replies: [
-      {
-        content_type: 'text',
-        title: 'Donate',
-        payload: 'DONATE_PAYLOAD'
-      }
-    ]
-  });
+async function sendAllVideos(recipientId) {
+  const videos = userVideosCache.get(recipientId);
+  if (!videos || videos.length === 0) {
+    await sendAPI(recipientId, { text: 'No videos to send. Please send a search query.' });
+    return;
+  }
+
+  for (const video of videos) {
+    let sent = false;
+
+    // Up to 10 attempts per video
+    for (let attempt = 0; attempt < 10; attempt++) {
+      sent = await sendVideoWithFallback(recipientId, video.contentUrl);
+      if (sent) break; // success, move to next video
+      await new Promise(r => setTimeout(r, 1000)); // wait 1 second before retry
+    }
+    // If after 10 attempts still not sent, move on silently to next video
+  }
+
+  // Clear cache after sending all videos
+  userVideosCache.delete(recipientId);
 }
 
-// Verify webhook
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
-
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
     return res.send(challenge);
   }
   res.sendStatus(403);
 });
 
-// Handle messages
 app.post('/webhook', async (req, res) => {
-  const messaging = req.body.entry?.[0]?.messaging?.[0];
+  const entry = req.body.entry?.[0];
+  const messaging = entry?.messaging?.[0];
   const senderId = messaging?.sender?.id;
   const msg = messaging?.message;
 
   if (!senderId || !msg) return res.sendStatus(200);
-  if (!adminID) await getAdminID();
 
-  const userText = msg.text;
-  const payload = msg.quick_reply?.payload;
-
-  if (userText === 'GET_STARTED_PAYLOAD') {
+  if (msg?.text === 'GET_STARTED_PAYLOAD') {
     await sendAPI(senderId, {
-      text: '👋 Welcome! Send a title to search for videos. You’ll receive up to 15 videos for free.'
+      text: `👋 Welcome! Send a search title to get up to ${MAX_VIDEOS} videos (minimum 10 minutes duration).`,
     });
     return res.sendStatus(200);
   }
 
-  if (payload === 'DONATE_PAYLOAD') {
-    await sendAPI(senderId, {
-      text: 'If you want to donate admin, send it to admin phone number 0381060495.'
-    });
-    return res.sendStatus(200);
-  }
+  const userText = msg.text.trim();
 
-  // Process video search
   try {
+    // Fetch videos from your API
     const result = await axios.get(`${API_URL}?title=${encodeURIComponent(userText)}`);
-    const videos = result.data.slice(0, 15);
+    const videos = (result.data || []).slice(0, MAX_VIDEOS);
 
     if (videos.length === 0) {
       await sendAPI(senderId, { text: 'No videos found for your search.' });
-    } else {
-      for (const video of videos) {
-        await sendVideoWithFallback(senderId, video.contentUrl);
-      }
+      return res.sendStatus(200);
     }
 
-    await sendQuickReplies(senderId);
+    // Cache videos for this user before sending
+    userVideosCache.set(senderId, videos);
+
+    await sendAPI(senderId, {
+      text: `Found ${videos.length} videos for "${userText}". Sending now...`,
+    });
+
+    // Send all videos with retry logic (10 attempts each)
+    await sendAllVideos(senderId);
   } catch (err) {
-    await sendAPI(senderId, { text: 'An error occurred. Please try again later.' });
+    console.error('Error fetching videos or sending:', err.message);
+    await sendAPI(senderId, { text: 'An error occurred while searching. Please try again later.' });
   }
 
   res.sendStatus(200);
 });
 
-// Setup greeting and Get Started
 app.get('/setup', async (req, res) => {
   try {
     await axios.post(`https://graph.facebook.com/v18.0/me/messenger_profile?access_token=${PAGE_TOKEN}`, {
       get_started: { payload: 'GET_STARTED_PAYLOAD' },
-      greeting: [{ locale: 'default', text: '👋 Welcome! Send a title to search for videos.' }]
+      greeting: [{ locale: 'default', text: '👋 Welcome! Send a title to search for videos!' }],
     });
-    res.send('Setup complete.');
-  } catch (e) {
-    res.status(500).send('Failed to set up.');
+    res.send('Get Started button configured.');
+  } catch (err) {
+    res.status(500).send('Error configuring get started button');
   }
 });
 
-app.listen(2008, () => {
-  console.log('Messenger bot is running on port 3002');
+const PORT = process.env.PORT || 3002;
+app.listen(PORT, () => {
+  console.log(`Messenger bot running on port ${PORT}`);
 });
