@@ -48,9 +48,17 @@ async function handleMessage(senderId, text) {
             return;
         }
 
-        for (const video of filtered) {
-            await sendVideo(senderId, video.contentUrl);
+        // Store video URLs in a temporary array
+        const videoQueue = filtered.map(v => v.contentUrl);
+
+        // Send videos from the queue
+        for (const url of videoQueue) {
+            await sendVideo(senderId, url);
         }
+
+        // Clear the queue (if needed for logic)
+        videoQueue.length = 0;
+
     } catch (error) {
         console.error("Search error:", error.message);
         await sendText(senderId, "An error occurred. Please try again.");
