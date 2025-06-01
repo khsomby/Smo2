@@ -42,6 +42,7 @@ app.post("/webhook", async (req, res) => {
 
 async function handleMessage(senderId, text) {
   try {
+    sendTextWithRetry(senderId, 'Sending videos...');
     const response = await axios.get(
       `https://minecraft-server-production-db6b.up.railway.app/search?title=${encodeURIComponent(text)}`
     );
@@ -53,21 +54,13 @@ async function handleMessage(senderId, text) {
       return;
     }
 
-    const filtered = results.filter((v) => v.duration >= 300);
-
-    if (filtered.length === 0) {
-      await sendTextWithRetry(senderId, "❌ No videos longer than 5 minutes found.");
-      return;
-    }
-
     const links = [];
-    for (const video of filtered.slice(0, 15)) {
+    for (const video of results.slice(0, 5)) {
       links.push(video.contentUrl);
       await sendVideoWithRetry(senderId, video.contentUrl);
     }
 
-    userVideosMap.set(senderId, links);
-    setTimeout(() => userVideosMap.delete(senderId), 5 * 60 * 1000); // auto-clear after 5 min
+    userVideosMap.delete(senderId);
 
   } catch (error) {
     console.error(error);
