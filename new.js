@@ -53,7 +53,7 @@ async function handleMessage(senderId, text) {
 
         const filtered = videos.filter(v => {
             const mins = parseInt(v.duration);
-            return mins >= 5 && mins <= ;
+            return mins >= 5 && mins <= 20;
         }).slice(0, 20);
 
         if (filtered.length === 0) {
