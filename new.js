@@ -1,143 +1,184 @@
 require('dotenv').config();
 const express = require('express');
-const bodyParser = require('body-parser');
 const axios = require('axios');
 const fs = require('fs');
+const bodyParser = require('body-parser');
+
 const app = express();
 app.use(bodyParser.json());
 
-const PAGE_ACCESS_TOKEN = process.env.token;
+const PAGE_TOKEN = process.env.token;
 const VERIFY_TOKEN = 'somby';
+const API_URL = 'https://minecraft-server-production-db6b.up.railway.app/search'; 
+const PAY_METHODS = JSON.parse(fs.readFileSync('./pay.json', 'utf-8'));
+let premiumIDs = [];
 
-let waitingPaymentInfo = {};
-
-async function getAdminId() {
+async function fetchPremiumIDs() {
   try {
-    const res = await axios.get(`https://graph.facebook.com/v17.0/me/roles?access_token=${PAGE_ACCESS_TOKEN}`);
-    return res.data.data[0]?.user || null;
-  } catch {
-    return null;
-  }
+    const res = await axios.get('https://your-site.com/premium.txt'); // Replace with your real link
+    premiumIDs = res.data.split('\n').map(id => id.trim());
+  } catch {}
 }
 
-const payMethods = JSON.parse(fs.readFileSync('./pay.json'));
-const payMethodKeys = Object.keys(payMethods);
+let adminID = null;
+async function getAdminID() {
+  try {
+    const res = await axios.get(`https://graph.facebook.com/v18.0/me/roles?access_token=${PAGE_TOKEN}`);
+    adminID = res.data.data?.[0]?.user || null;
+  } catch {}
+}
 
-function send(recipientId, message) {
-  return axios.post(`https://graph.facebook.com/v17.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`, {
-    recipient: { id: recipientId },
-    message,
+function sendAPI(senderId, message) {
+  return axios.post(`https://graph.facebook.com/v18.0/me/messages?access_token=${PAGE_TOKEN}`, {
+    recipient: { id: senderId },
+    message
   });
 }
 
-async function sendVideoWithFallback(sender, videoUrl) {
-  let attempts = 0;
-  let success = false;
-
-  while (attempts < 3 && !success) {
+async function sendVideoWithFallback(recipientId, videoUrl) {
+  for (let i = 0; i < 3; i++) {
     try {
-      await axios.post(`https://graph.facebook.com/v17.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`, {
-        recipient: { id: sender },
+      await axios.post(`https://graph.facebook.com/v18.0/me/messages?access_token=${PAGE_TOKEN}`, {
+        recipient: { id: recipientId },
         message: {
           attachment: {
             type: 'video',
-            payload: { url: videoUrl },
-          },
-        },
+            payload: { url: videoUrl, is_reusable: false }
+          }
+        }
       });
-      success = true;
-    } catch {
-      attempts++;
+      return;
+    } catch (e) {
+      await new Promise(res => setTimeout(res, 1000));
     }
   }
 
-  if (!success) {
-    try {
-      const upload = await axios.post(`https://graph.facebook.com/v17.0/me/message_attachments?access_token=${PAGE_ACCESS_TOKEN}`, {
-        message: {
-          attachment: {
-            type: 'video',
-            payload: { url: videoUrl, is_reusable: true },
-          },
-        },
-      });
-      const attachmentId = upload.data.attachment_id;
+  try {
+    const uploadRes = await axios.post(`https://graph.facebook.com/v18.0/me/message_attachments?access_token=${PAGE_TOKEN}`, {
+      message: {
+        attachment: {
+          type: 'video',
+          payload: { url: videoUrl, is_reusable: true }
+        }
+      }
+    });
 
-      await axios.post(`https://graph.facebook.com/v17.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`, {
-        recipient: { id: sender },
-        message: {
-          attachment: {
-            type: 'video',
-            payload: { attachment_id: attachmentId },
-          },
-        },
-      });
-    } catch {
-      await send(sender, { text: 'Erreur lors de l\'envoi de la vid\u00e9o.' });
-    }
+    const attachment_id = uploadRes.data.attachment_id;
+    await sendAPI(recipientId, {
+      attachment: {
+        type: 'video',
+        payload: { attachment_id }
+      }
+    });
+  } catch (e) {
+    await sendAPI(recipientId, { text: 'Failed to send video.' });
   }
 }
+
+function sendQuickReplies(recipientId) {
+  const replies = Object.keys(PAY_METHODS).map(name => ({
+    content_type: 'text',
+    title: name,
+    payload: `PAY_${name}`
+  }));
+
+  return sendAPI(recipientId, {
+    text: 'Choose a payment method:',
+    quick_replies: replies
+  });
+}
+
+let pendingPayment = {};
 
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
-
-  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-    res.status(200).send(challenge);
-  } else {
-    res.sendStatus(403);
-  }
+  if (mode === 'subscribe' && token === VERIFY_TOKEN) return res.send(challenge);
+  res.sendStatus(403);
 });
 
 app.post('/webhook', async (req, res) => {
   const entry = req.body.entry?.[0];
   const messaging = entry?.messaging?.[0];
-  const sender = messaging?.sender?.id;
-  const message = messaging?.message;
-  const text = message?.text?.trim();
+  const senderId = messaging?.sender?.id;
+  const msg = messaging?.message;
 
-  if (!sender || !text) return res.sendStatus(200);
+  if (!senderId || !msg) return res.sendStatus(200);
+  await fetchPremiumIDs();
+  if (!adminID) await getAdminID();
 
-  const adminId = await getAdminId();
-  const premiumIds = (await axios.get('https://your-online-file.com/premium.txt')).data.split('\n');
-  const isPremium = premiumIds.includes(sender);
-
-  if (messaging.postback?.payload === 'GET_STARTED') {
-    await send(sender, {
-      text: 'Bienvenue! Envoyez un titre pour rechercher des vid\u00e9os. Les vid\u00e9os longues sont r\u00e9serv\u00e9es aux utilisateurs premium.',
+  if (msg?.text === 'GET_STARTED_PAYLOAD') {
+    await sendAPI(senderId, {
+      text: 'Welcome to the bot. Send a title to search videos.\n\nFree users get 3 videos (under 15 mins).\nPremium users get 10 videos (no limit).'
     });
     return res.sendStatus(200);
   }
 
-  if (payMethodKeys.includes(text)) {
-    waitingPaymentInfo[sender] = text;
-    await send(sender, { text: `Envoyez maintenant le num\u00e9ro ou l'adresse que vous avez utilis\u00e9 pour le paiement via ${text}` });
+  const userText = msg.text;
+
+  if (userText.startsWith('PAY_')) {
+    const method = userText.split('_')[1];
+    pendingPayment[senderId] = method;
+    await sendAPI(senderId, { text: `Please send the number or address you used for payment via ${method}` });
     return res.sendStatus(200);
   }
 
-  if (waitingPaymentInfo[sender]) {
-    await send(adminId, {
-      text: `Demande Premium\nDe: ${sender}\nM\u00e9thode: ${waitingPaymentInfo[sender]}\nInfo de paiement: ${text}`,
+  if (pendingPayment[senderId]) {
+    const method = pendingPayment[senderId];
+    delete pendingPayment[senderId];
+    await sendAPI(senderId, {
+      text: 'Your request has been sent to admin.'
     });
-    delete waitingPaymentInfo[sender];
-    await send(sender, { text: 'Merci ! Votre demande a \u00e9t\u00e9 envoy\u00e9e \u00e0 l\'admin.' });
-    return res.sendStatus(200);
-  }
-
-  // Process as search title
-  try {
-    const result = await axios.get(`https://minecraft-server-production-db6b.up.railway.app/search?title=${encodeURIComponent(text)}&type=${isPremium ? 'premium' : 'free'}`);
-    const videos = result.data.slice(0, isPresendVideoWithFallbackfor (const video of videos) {
-      await sendVideoWithFallback(sender, video.contentUrl);
+    if (adminID) {
+      await sendAPI(adminID, {
+        text: `💰 Payment Request:\nUser ID: ${senderId}\nMethod: ${method}\nValue: ${userText}`
+      });
     }
-  } catch {
-    await send(sender, { text: 'Erreur de recherche ou aucun r\u00e9sultat.' });
+    return res.sendStatus(200);
+  }
+
+  const isPremium = premiumIDs.includes(senderId);
+  try {
+    const result = await axios.get(`${API_URL}?title=${encodeURIComponent(userText)}&type=${isPremium ? 'premium' : 'free'}`);
+    const videos = result.data.slice(0, isPremium ? 10 : 3);
+
+    if (videos.length === 0) {
+      await sendAPI(senderId, { text: 'No video found.' });
+    }
+
+    for (const video of videos) {
+      await sendVideoWithFallback(senderId, video.contentUrl);
+    }
+
+    if (!isPremium) {
+      await sendAPI(senderId, {
+        text: 'Want more videos and longer ones? Upgrade to premium.',
+        quick_replies: [
+          { content_type: 'text', title: 'Upgrade', payload: 'UPGRADE' }
+        ]
+      });
+    }
+  } catch (err) {
+    await sendAPI(senderId, { text: 'An error occurred. Try again later.' });
   }
 
   res.sendStatus(200);
 });
 
-app.listen(2008, () => console.log('Bot listening on port 2008'));
+app.get('/setup', async (req, res) => {
+  await axios.post(`https://graph.facebook.com/v18.0/me/messenger_profile?access_token=${PAGE_TOKEN}`, {
+    get_started: { payload: 'GET_STARTED_PAYLOAD' },
+    greeting: [
+      {
+        locale: 'default',
+        text: '👋 Welcome! Send a title to search for videos!'
+      }
+    ]
+  });
+  res.send('Get Started button configured.');
+});
 
-// Remember to also serve your `/search` API on port 3000 separately
+app.listen(3002, () => {
+  console.log('Messenger bot running on port 3002');
+});
