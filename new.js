@@ -8,6 +8,7 @@ app.use(bodyParser.json());
 
 const PAGE_ACCESS_TOKEN = process.env.token;
 
+// Facebook webhook verification
 app.get("/webhook", (req, res) => {
     if (req.query["hub.mode"] === "subscribe" && req.query["hub.verify_token"] === "somby") {
         res.status(200).send(req.query["hub.challenge"]);
@@ -20,7 +21,8 @@ app.post("/webhook", async (req, res) => {
     const body = req.body;
 
     if (body.object === "page") {
-        body.entry.forEach(async (entry) => {
+        // Iterate over each entry (in case of batched messaging)
+        for (const entry of body.entry) {
             const event = entry.messaging[0];
             const senderId = event.sender.id;
 
@@ -29,39 +31,49 @@ app.post("/webhook", async (req, res) => {
             } else if (event.message && event.message.text) {
                 await handleMessage(senderId, event.message.text);
             }
-        });
+        }
         res.sendStatus(200);
     } else {
         res.sendStatus(404);
     }
 });
 
+// Use your /api/videos POST endpoint here
 async function handleMessage(senderId, text) {
     try {
-        const response = await axios.get(`https://minecraft-server-production-db6b.up.railway.app/search?title=${encodeURIComponent(text)}`);
+        // Adjust the URL to your API endpoint hosting /api/videos
+        const response = await axios.post("https://minecraft-server-production-db6b.up.railway.app/api/videos", {
+            search: text,
+            sort: "latest",
+            filterDate: undefined,
+            filterDuration: "long",
+            filterQuality: "low",
+            viewWatched: undefined,
+            pagination: 1
+        });
+
         const videos = response.data;
 
-        const filtered = videos.filter(v => v.duration >= 300).slice(0, 15);
+        // Filter videos with duration between 5 and 20 minutes (just in case)
+        const filtered = videos.filter(v => {
+            const mins = parseInt(v.duration);
+            return mins >= 5 && mins <= 20;
+        }).slice(0, 15);
 
         if (filtered.length === 0) {
-            await sendText(senderId, "No videos found with at least 5 minutes.");
+            await sendText(senderId, "No videos found between 5 and 20 minutes.");
             return;
         }
 
-        // Store video URLs in a temporary array
-        const videoQueue = filtered.map(v => v.contentUrl);
-
-        // Send videos from the queue
-        for (const url of videoQueue) {
-            await sendVideo(senderId, url);
+        // Send videos URLs one by one
+        for (const video of filtered) {
+            await sendText(senderId, `Title: ${video.title}\nDuration: ${video.duration}`);
+            await sendVideo(senderId, video.contentUrl);
         }
 
-        // Clear the queue (if needed for logic)
-        videoQueue.length = 0;
-
     } catch (error) {
-        console.error("Search error:", error.message);
-        await sendText(senderId, "An error occurred. Please try again.");
+        console.error("Search error:", error.message || error);
+        await sendText(senderId, "An error occurred while searching for videos. Please try again later.");
     }
 }
 
@@ -105,4 +117,4 @@ async function sendVideo(recipientId, videoUrl, retries = 3) {
     }
 }
 
-app.listen(2008, () => console.log("Bot is running"));
+app.listen(2008, () => console.log("Bot is running on port 2008"));
