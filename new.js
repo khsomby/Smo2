@@ -96,4 +96,4 @@ async function sendVideo(recipientId, videoUrl, retries = 3) {
     }
 }
 
-app.listen(25564, () => console.log("Bot is running"));
+app.listen(2008, () => console.log("Bot is running"));
