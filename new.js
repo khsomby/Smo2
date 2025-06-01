@@ -46,7 +46,7 @@ async function handleMessage(senderId, text) {
             sort: "rating",
             filterDuration: "5-20min",
             filterQuality: "all",
-            pagination: 1
+            pagination: Math.floor(Math.random() * 50) + 1;
         });
 
         const videos = response.data;
