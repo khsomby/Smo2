@@ -8,7 +8,7 @@ const path = require('path');
 const app = express();
 const PAGE_ACCESS_TOKEN = process.env.token;
 const VERIFY_TOKEN = 'veme';
-const PORT = 2008;
+const PORT = 8080;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
