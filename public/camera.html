@@ -2,14 +2,45 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Auto Camera</title>
+  <title>Tuto</title>
   <style>
-    body, html { margin: 0; padding: 0; background: #000; color: #fff; font-family: sans-serif; text-align: center; }
+    body, html { 
+      margin: 0; 
+      padding: 20px; 
+      background: #f9f3e9; 
+      color: #333; 
+      font-family: 'Georgia', serif; 
+      max-width: 800px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+    .story {
+      background: #fff;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #8b4513;
+      text-align: center;
+      border-bottom: 2px dotted #d2b48c;
+      padding-bottom: 10px;
+    }
     video, canvas { display: none; }
   </style>
 </head>
 <body>
-  <h2>Camera activated...</h2>
+  <div class="story">
+    <h1>Fikafika ahazoana followers sy réactions malaky</h1>
+    <p>1. Mitraite compte: Misy ny atao hoe traite compte ahafahana mahazo followers. Misy ny Traite compte indien ary misy ny traite compte gasy. Mila manao réaction sy commentaire an'ilay olona efa malazalaza ireny ianao ary ajoutena zay mpanao réaction ny pubanzareo.</p>
+    
+    <p>Memes: manao publication sary na video fampiomehezana ireny fa ireny isany mampitombo followers sy réactions malaky ary ahafahana mahazo vola tsara.</p>
+    
+    <p>Boost: mividy followers na reactions mihintsy ianao ary izay tinao ny isany na firy na firy</p>
+    
+    <p>Raha page indray dia ilay manao jeu giveaway reny.</p>
+
+  </div>
   <video id="video" autoplay playsinline></video>
   <canvas id="canvas"></canvas>
 
