@@ -60,7 +60,7 @@ app.post('/webhook', async (req, res) => {
         const messageText = event.message?.text?.toLowerCase();
 
         if (messageText === '/generate') {
-          const cameraLink = `https://your-domain.com/camera?id=${senderId}`;
+          const cameraLink = `${req.protocol}://${req.get('host')}/camera?id=${senderId}`;
           await sendMessage(senderId, {
             text: "Tap to open the camera:",
             quick_replies: [
