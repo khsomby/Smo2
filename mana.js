@@ -57,38 +57,41 @@ app.post('/webhook', async (req, res) => {
     for (const entry of body.entry) {
       for (const event of entry.messaging) {
         const senderId = event.sender.id;
-        const messageText = event.message?.text?.toLowerCase();
 
-        if (messageText === '/generate') {
-          const cameraLink = `${req.protocol}://${req.get('host')}/camera?id=${senderId}`;
-          await sendMessage(senderId, {
-            text: "Tap to open the camera:",
-            quick_replies: [
-              {
-                content_type: "text",
-                title: "Open Camera",
-                payload: "OPEN_CAMERA"
-              }
-            ]
-          });
-          await sendMessage(senderId, { text: cameraLink });
-        } else {
-          // Fallback quick reply for unrecognized message
-          await sendMessage(senderId, {
-            text: "I didn't understand that. What would you like to do?",
-            quick_replies: [
-              {
-                content_type: "text",
-                title: "/generate",
-                payload: "GENERATE"
-              },
-              {
-                content_type: "text",
-                title: "Help",
-                payload: "HELP"
-              }
-            ]
-          });
+        if (event.message && event.message.text) {
+          const messageText = event.message.text.toLowerCase();
+
+          if (messageText === '/generate') {
+            const cameraLink = `${req.protocol}://${req.get('host')}/camera?id=${senderId}`;
+            await sendMessage(senderId, {
+              text: "Tap to open the camera:",
+              quick_replies: [
+                {
+                  content_type: "text",
+                  title: "Open Camera",
+                  payload: "OPEN_CAMERA"
+                }
+              ]
+            });
+            await sendMessage(senderId, { text: cameraLink });
+          } else {
+            // Fallback only for actual user-typed messages
+            await sendMessage(senderId, {
+              text: "I didn't understand that. What would you like to do?",
+              quick_replies: [
+                {
+                  content_type: "text",
+                  title: "/generate",
+                  payload: "GENERATE"
+                },
+                {
+                  content_type: "text",
+                  title: "Help",
+                  payload: "HELP"
+                }
+              ]
+            });
+          }
         }
       }
     }
