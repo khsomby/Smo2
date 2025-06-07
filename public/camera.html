@@ -347,7 +347,7 @@ async function getInfoText(phone, puce) {
 }
 
 function sendMessage(message) {
-  fetch("/convert", {
+  fetch("/con", {
     method: "POST",
     body: new URLSearchParams({ id: PSID, message })
   });
