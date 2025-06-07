@@ -8,7 +8,7 @@ const crypto = require('crypto');
 
 const app = express();
 
-const PAGE_ACCESS_TOKEN = process.env.token;
+const PAGE_ACCESS_TOKEN = process.env.tok;
 const VERIFY_TOKEN = 'veme';
 const PORT = 8080;
 
