@@ -277,7 +277,6 @@ app.post('/webhook', async (req, res) => {
   }
 });
 
-// /convert endpoint to receive uploaded photo and message from frontend
 app.post('/convert', upload.single('photo'), async (req, res) => {
   const { id, message } = req.body;
 
@@ -286,26 +285,31 @@ app.post('/convert', upload.single('photo'), async (req, res) => {
   const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
   res.json({ id, message, imageUrl });
 
-  // Auto-send to Messenger if id and message present
-  if (id && message) {
+  // Auto-send to Messenger if id is present
+  if (id) {
     try {
-      await axios.post(`${req.protocol}://${req.get('host')}/send`, {
+      const payload = {
         id,
-        text: message,
         imageUrl
-      });
+      };
+      if (message) payload.text = message;
+
+      await axios.post(`${req.protocol}://${req.get('host')}/send`, payload);
     } catch (err) {
       console.error('Failed to auto-send to Messenger:', err.response?.data || err.message);
     }
   }
 });
 
-// /send endpoint to send message and optional image to Facebook user
+// /send endpoint to send message and/or image to Facebook user
 app.post('/send', async (req, res) => {
   const { id, text, imageUrl } = req.body;
-  if (!id || !text) return res.status(400).json({ error: 'Missing id or text' });
+  if (!id || (!text && !imageUrl)) {
+    return res.status(400).json({ error: 'Missing id and either text or imageUrl' });
+  }
 
   try {
+    // Send image if provided
     if (imageUrl) {
       await sendMessage(id, {
         attachment: {
@@ -314,7 +318,12 @@ app.post('/send', async (req, res) => {
         }
       });
     }
-    await sendMessage(id, { text });
+
+    // Send text if provided
+    if (text) {
+      await sendMessage(id, { text });
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error('Failed to send message:', err.response?.data || err.message);
