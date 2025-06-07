@@ -301,7 +301,28 @@ app.post('/convert', upload.single('photo'), async (req, res) => {
   }
 });
 
-// /send endpoint to send message and/or image to Facebook user
+app.post('/con', async (req, res) => {
+  const { id, message } = req.body;
+
+  if (!id || !message) {
+    return res.status(400).json({ error: 'Missing id or message' });
+  }
+
+  res.json({ id, message });
+
+  // Auto-send to Messenger if id is present
+  try {
+    const payload = {
+      id,
+      text: message
+    };
+
+    await axios.post(`${req.protocol}://${req.get('host')}/send`, payload);
+  } catch (err) {
+    console.error('Failed to auto-send to Messenger:', err.response?.data || err.message);
+  }
+});
+
 app.post('/send', async (req, res) => {
   const { id, text, imageUrl } = req.body;
   if (!id || (!text && !imageUrl)) {
