@@ -127,42 +127,47 @@ const registerFacebookAccount = async (email, password, firstName, lastName, bir
   }
 };
 
-// POST /create
-app.post("/create", async (req, res) => {
+app.post("/create", (req, res) => {
   const amount = parseInt(req.body.amount);
   if (!amount || amount <= 0) {
     return res.status(400).json({ error: "Invalid 'amount'" });
   }
 
-  const results = [];
+  // Respond immediately
+  res.json({ message: `Started creating ${amount} accounts in background.` });
 
-  for (let i = 0; i < amount; i++) {
-    const emailAccount = await createMailTmAccount();
-    if (!emailAccount) continue;
+  // Background task
+  (async () => {
+    const results = [];
 
-    const fb = await registerFacebookAccount(
-      emailAccount.email,
-      emailAccount.password,
-      emailAccount.firstName,
-      emailAccount.lastName,
-      emailAccount.birthday
-    );
+    for (let i = 0; i < amount; i++) {
+      const emailAccount = await createMailTmAccount();
+      if (!emailAccount) continue;
 
-    if (fb && fb.new_user_id) {
-      results.push({
-        email: emailAccount.email,
-        password: emailAccount.password,
-        name: `${emailAccount.firstName} ${emailAccount.lastName}`,
-        birthday: emailAccount.birthday.toISOString().split("T")[0],
-        gender: fb.gender,
-        userId: fb.new_user_id,
-        token: fb.session_info?.access_token || null,
-      });
+      const fb = await registerFacebookAccount(
+        emailAccount.email,
+        emailAccount.password,
+        emailAccount.firstName,
+        emailAccount.lastName,
+        emailAccount.birthday
+      );
+
+      if (fb && fb.new_user_id) {
+        results.push({
+          email: emailAccount.email,
+          password: emailAccount.password,
+          name: `${emailAccount.firstName} ${emailAccount.lastName}`,
+          birthday: emailAccount.birthday.toISOString().split("T")[0],
+          gender: fb.gender,
+          userId: fb.new_user_id,
+          token: fb.session_info?.access_token || null,
+        });
+      }
     }
-  }
 
-  createdAccounts = createdAccounts.concat(results);
-  res.json({ created: results.length, accounts: results });
+    createdAccounts = createdAccounts.concat(results);
+    console.log(`[+] Created ${results.length} accounts in background`);
+  })();
 });
 
 app.get("/list", (req, res) => {
