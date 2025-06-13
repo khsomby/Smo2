@@ -3,7 +3,7 @@ const bodyParser = require('body-parser');
 const axios = require("axios");
 
 const app = express();
-const PORT = process.env.PORT;
+const PORT = 8080;
 
 const PAGE_ACCESS_TOKEN = process.env.tok;
 
