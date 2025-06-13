@@ -1,31 +1,16 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const axios = require("axios");
-const fs = require("fs");
+const fs = require('fs');
+
 const app = express();
 const PORT = 8080;
 
-const tokens = fs.readFileSync('token.txt', 'utf-8')
+// Read multiple tokens from token.txt (one per line)
+const PAGE_TOKENS = fs.readFileSync('./token.txt', 'utf8')
   .split('\n')
   .map(t => t.trim())
-  .filter(t => t.length);
-
-const pageTokenMap = {};
-
-async function initPageMap() {
-  for (const token of tokens) {
-    try {
-      const res = await axios.get(`https://graph.facebook.com/v11.0/me`, {
-        params: { access_token: token }
-      });
-      const pageId = res.data.id;
-      pageTokenMap[pageId] = token;
-      console.log(`Mapped Page ID ${pageId}`);
-    } catch (err) {
-      console.error("❌ Failed to map token:", err.response?.data || err.message);
-    }
-  }
-}
+  .filter(Boolean);
 
 const LANGUAGES = [
   { code: "mg", name: "Malagasy 🇲🇬" },
@@ -82,13 +67,7 @@ const LANGUAGES = [
 
 const languagePaginationMap = {};
 
-const sendMessage = async (pageId, senderId, message) => {
-  const token = pageTokenMap[pageId];
-  if (!token) {
-    console.error("❌ No token for page:", pageId);
-    return;
-  }
-
+const sendMessage = async (senderId, message, token) => {
   try {
     const response = await axios.post(
       `https://graph.facebook.com/v11.0/me/messages`,
@@ -107,31 +86,31 @@ const sendMessage = async (pageId, senderId, message) => {
   }
 };
 
-const askForLanguage = async (pageId, senderId, originalMessage, page = 0) => {
+const askForLanguage = async (senderId, originalMessage, token, page = 0) => {
   languagePaginationMap[senderId] = { originalMessage, page };
 
-  const pageSize = 8;
+  const pageSize = 12;
   const start = page * pageSize;
   const slicedLangs = LANGUAGES.slice(start, start + pageSize);
 
-  const quick_replies = slicedLangs.map(lang => ({
+  const quick_replies = slicedLangs.map((lang, index) => ({
     content_type: "text",
     title: lang.name,
-    payload: `LANG_${lang.code}`
+    payload: `LANG_${page}_${lang.code}`
   }));
 
   if (start + pageSize < LANGUAGES.length) {
     quick_replies.push({
       content_type: "text",
-      title: "➡️ Suivant",
+      title: "➡️ Next",
       payload: "LANG_NEXT"
     });
   }
 
-  return sendMessage(pageId, senderId, {
+  return sendMessage(senderId, {
     text: "Adika amin'ny teny:",
     quick_replies
-  });
+  }, token);
 };
 
 const translateText = async (text, targetLang) => {
@@ -149,45 +128,55 @@ const translateText = async (text, targetLang) => {
       }
     );
 
-    return response.data[0].map(part => part[0]).join('');
+    const translatedText = response.data[0].map(item => item[0]).join('');
+    return translatedText;
   } catch (err) {
     console.error("Translation Error:", err.response?.data || err.message);
-    return "❌ Échec de la traduction.";
+    return "❌ Échec de traduction.";
   }
 };
 
-const listenMessage = async (pageId, event) => {
+const listenMessage = async (event, token) => {
   const senderID = event.sender.id;
-  const message = event.message.text;
+  const message = event.message?.text;
   if (!senderID || !message) return;
 
-  return askForLanguage(pageId, senderID, message);
+  return askForLanguage(senderID, message, token);
 };
 
-const listenQuickReply = async (pageId, event) => {
+const listenQuickReply = async (event, token) => {
   const senderID = event.sender.id;
-  const payload = event.message.quick_reply.payload;
+  const payload = event.message.quick_reply?.payload;
 
-  if (!payload.startsWith("LANG_")) return;
+  if (!payload?.startsWith("LANG_")) return;
 
   const state = languagePaginationMap[senderID];
-  if (!state) return sendMessage(pageId, senderID, "❌ Aucun texte à traduire.");
+  if (!state) return sendMessage(senderID, "❌ Aucun texte à traduire.", token);
 
   if (payload === "LANG_NEXT") {
     const nextPage = state.page + 1;
-    return askForLanguage(pageId, senderID, state.originalMessage, nextPage);
+    return askForLanguage(senderID, state.originalMessage, token, nextPage);
   }
 
-  const langCode = payload.replace("LANG_", "");
+  const match = payload.match(/^LANG_(\d+)_(.+)$/);
+  if (!match) return sendMessage(senderID, "❌ Erreur de sélection de langue.", token);
+
+  const [, pageStr, langCode] = match;
+  const selectedPage = parseInt(pageStr);
+
+  if (selectedPage !== state.page) {
+    return sendMessage(senderID, "⚠️ Sélection périmée. Veuillez réessayer.", token);
+  }
+
   const translated = await translateText(state.originalMessage, langCode);
-  return sendMessage(pageId, senderID, translated);
+  return sendMessage(senderID, translated, token);
 };
 
-const handleEvent = async (pageId, event) => {
-  if (event.message && event.message.quick_reply) {
-    await listenQuickReply(pageId, event);
-  } else if (event.message && event.message.text) {
-    await listenMessage(pageId, event);
+const handleEvent = async (event, token) => {
+  if (event.message?.quick_reply) {
+    await listenQuickReply(event, token);
+  } else if (event.message?.text) {
+    await listenMessage(event, token);
   }
 };
 
@@ -199,8 +188,8 @@ app.get('/webhook', (req, res) => {
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
-  if (mode && token && mode === 'subscribe' && token === VERIFY_TOKEN) {
-    console.log('✅ Webhook verified!');
+  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+    console.log('Webhook verified!');
     res.status(200).send(challenge);
   } else {
     res.sendStatus(403);
@@ -212,18 +201,23 @@ app.post('/webhook', (req, res) => {
 
   if (body.object === 'page') {
     body.entry.forEach(async entry => {
-      const pageId = entry.id;
-      const event = entry.messaging[0];
-      await handleEvent(pageId, event);
+      const webhookEvent = entry.messaging[0];
+      const pageID = entry.id;
+
+      const pageIndex = PAGE_TOKENS.length === 1
+        ? 0
+        : PAGE_TOKENS.findIndex((_, i) => i === PAGE_TOKENS.indexOf(PAGE_TOKENS.find(t => entry.id.includes(t.slice(0, 10)))));
+      const token = PAGE_TOKENS[pageIndex] || PAGE_TOKENS[0];
+
+      await handleEvent(webhookEvent, token);
     });
+
     res.status(200).send('EVENT_RECEIVED');
   } else {
     res.sendStatus(404);
   }
 });
 
-initPageMap().then(() => {
-  app.listen(PORT, () => {
-    console.log(`🚀 Server is running on port ${PORT}`);
-  });
+app.listen(PORT, () => {
+  console.log(`✅ Serveur lancé sur le port ${PORT}`);
 });
