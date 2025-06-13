@@ -111,7 +111,7 @@ const sendMessage = async (pageId, senderId, message) => {
 const askForLanguage = async (pageId, senderId, originalMessage, page = 0) => {
   languagePaginationMap[senderId] = { originalMessage, page };
 
-  const pageSize = 12;
+  const pageSize = 10;
   const start = page * pageSize;
   const slicedLangs = LANGUAGES.slice(start, start + pageSize);
 
