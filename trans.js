@@ -7,7 +7,7 @@ const PORT = 8080;
 const PAGE_ACCESS_TOKEN = process.env.tok;
 
 const LANGUAGES = [
-  { code: "mg", name: "Malgache 🇲🇬" },
+  { code: "mg", name: "Malagasy 🇲🇬" },
   { code: "en", name: "Anglais 🇬🇧" },
   { code: "fr", name: "Français 🇫🇷" },
   { code: "zh", name: "Chinois 🇨🇳" },
