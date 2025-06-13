@@ -5,13 +5,12 @@ const fs = require("fs");
 const app = express();
 const PORT = 8080;
 
-// Load tokens and map page IDs to tokens
 const tokens = fs.readFileSync('token.txt', 'utf-8')
   .split('\n')
   .map(t => t.trim())
   .filter(t => t.length);
 
-const pageTokenMap = {}; // { pageId: token }
+const pageTokenMap = {};
 
 async function initPageMap() {
   for (const token of tokens) {
@@ -111,7 +110,7 @@ const sendMessage = async (pageId, senderId, message) => {
 const askForLanguage = async (pageId, senderId, originalMessage, page = 0) => {
   languagePaginationMap[senderId] = { originalMessage, page };
 
-  const pageSize = 10;
+  const pageSize = 8;
   const start = page * pageSize;
   const slicedLangs = LANGUAGES.slice(start, start + pageSize);
 
