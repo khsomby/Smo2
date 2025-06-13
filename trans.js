@@ -97,7 +97,8 @@ const translateText = async (text, targetLang) => {
       }
     );
 
-    return response.data[0][0][0];
+    const translatedText = response.data[0].map(item => item[0]).join('');
+    return translatedText;
   } catch (err) {
     console.error("Translation Error:", err.response ? err.response.data : err);
     return "❌ Translation failed.";
