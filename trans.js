@@ -118,6 +118,23 @@ const sendPrivateReply = async (commentId, message, token) => {
 
 app.use(bodyParser.json());
 
+app.get('/webhook', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  if (mode && token) {
+    if (mode === 'subscribe' && token === "somby") {
+      console.log('WEBHOOK_VERIFIED');
+      return res.status(200).send(challenge);
+    } else {
+      return res.sendStatus(403);
+    }
+  } else {
+    res.sendStatus(400);
+  }
+});
+
 app.post('/webhook', async (req, res) => {
   const body = req.body;
 
