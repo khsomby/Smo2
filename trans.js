@@ -164,6 +164,7 @@ app.post('/webhook', async (req, res) => {
             const commentId = change.value.comment_id;
 
             if (/ok/i.test(message) && commenterId && commentId) {
+              await sendMessage(commenterId, "✅ Merci pour votre commentaire sur notre publication ! N'hésitez pas à poser une question ou demander une traduction.", token);  
               await sendPrivateReplyWithMenu(commentId, token);
             }
           }
