@@ -60,6 +60,7 @@ const app = express();
 const PORT = 8080;
 
 const tokenFile = './token.txt';
+
 const PAGE_TOKENS = fs.readFileSync(tokenFile, 'utf8')
   .split('\n')
   .map(t => t.trim())
@@ -70,36 +71,49 @@ const pageTokenMap = {};
 const subscribePages = async () => {
   for (const token of PAGE_TOKENS) {
     try {
-      const meRes = await axios.get('https://graph.facebook.com/v18.0/me', {
+      const { data } = await axios.get('https://graph.facebook.com/v18.0/me/accounts', {
         params: { access_token: token }
       });
-      const pageId = meRes.data.id;
-      pageTokenMap[pageId] = token;
+      for (const page of data.data) {
+        const pageId = page.id;
+        const pageAccessToken = page.access_token;
+        pageTokenMap[pageId] = pageAccessToken;
 
-      await axios.post(`https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`, {
-        subscribed_fields: ['feed', 'group_feed', 'messages', 'messaging_postbacks', 'messaging_optins']
-      }, { params: { access_token: token } });
+        await axios.post(`https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`, {
+          subscribed_fields: ['feed', 'group_feed', 'messages', 'messaging_postbacks', 'messaging_optins']
+        }, {
+          params: { access_token: pageAccessToken }
+        });
 
-      console.log(`✅ Subscribed: ${pageId}`);
+        console.log(`✅ Subscribed: ${pageId}`);
+      }
     } catch (e) {
-      console.error(`❌ Failed to subscribe:`, e.response?.data || e.message);
+      console.error(`❌ Failed:`, e.response?.data || e.message);
     }
   }
 };
 
-app.get('/setup', async (req, res) => {
-  const results = [];
-  for (const token of PAGE_TOKENS) {
-    try {
-      const r = await axios.post(`https://graph.facebook.com/v18.0/me/messenger_profile`, {
-        get_started: { payload: "BYSOMBY" }
-      }, { params: { access_token: token }});
-      results.push({ token, ok: true });
-    } catch (e) {
-      results.push({ token, ok: false, error: e.message });
-    }
+app.use(bodyParser.json());
+
+app.get('/webhook', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  if (mode === 'subscribe' && token === "somby") {
+    console.log('WEBHOOK_VERIFIED');
+    return res.status(200).send(challenge);
+  } else {
+    return res.sendStatus(403);
   }
-  res.json(results);
+});
+
+const sendMessage = async (id, msg, tk) => axios.post(
+  `https://graph.facebook.com/v18.0/me/messages`,
+  { recipient: { id }, message: typeof msg === 'object' ? msg : { text: msg } },
+  { params: { access_token: tk } }
+).catch(e => {
+  console.error("❌ sendMessage error:", e.response?.data || e.message);
 });
 
 const sendPrivateReplyWithMenu = async (commentId, token) => {
@@ -107,7 +121,7 @@ const sendPrivateReplyWithMenu = async (commentId, token) => {
     await axios.post(`https://graph.facebook.com/v18.0/me/messages`, {
       recipient: { comment_id: commentId },
       message: {
-        text: "✅ Merci pour votre commentaire sur notre publication ! N'hésitez pas à poser une question ou demander une traduction !",
+        text: "✅ Merci pour votre commentaire !",
         quick_replies: [
           { content_type: "text", title: "🔤 Traduire", payload: "MODE_TRANSLATE" },
           { content_type: "text", title: "💬 Discuter", payload: "MODE_CHAT" }
@@ -120,82 +134,8 @@ const sendPrivateReplyWithMenu = async (commentId, token) => {
   }
 };
 
-app.use(bodyParser.json());
-
-app.get('/webhook', (req, res) => {
-  const mode = req.query['hub.mode'];
-  const token = req.query['hub.verify_token'];
-  const challenge = req.query['hub.challenge'];
-
-  if (mode && token) {
-    if (mode === 'subscribe' && token === "somby") {
-      console.log('WEBHOOK_VERIFIED');
-      return res.status(200).send(challenge);
-    } else {
-      return res.sendStatus(403);
-    }
-  } else {
-    res.sendStatus(400);
-  }
-});
-
-const receivedWebhookEvents = [];
-
-app.post('/webhook', async (req, res) => {
-  const body = req.body;
-  receivedWebhookEvents.push(body);
-
-  if (body.object === 'page') {
-    for (const entry of body.entry) {
-      const pageID = entry.id;
-      const token = pageTokenMap[pageID];
-      if (!token) continue;
-
-      if (entry.changes) {
-        for (const change of entry.changes) {
-          const isCommentAdd =
-            change.value?.item === 'comment' &&
-            change.value?.verb === 'add';
-
-          if ((change.field === 'feed' || change.field === 'group_feed') && isCommentAdd) {
-            const message = change.value.message || "";
-            const commenterId = change.value.from?.id;
-            const commentId = change.value.comment_id;
-
-            if (/ok/i.test(message) && commenterId && commentId) {
-              await sendMessage(commenterId, "Veuillez choisir une option.", token);  
-              await sendPrivateReplyWithMenu(commentId, token);
-            }
-          }
-        }
-      }
-
-      if (entry.messaging) {
-        for (const evt of entry.messaging) {
-          handleMessengerEvent(evt, token);
-        }
-      }
-    }
-    return res.sendStatus(200);
-  }
-
-  res.sendStatus(404);
-});
-
-app.get('/events', (req, res) => {
-  res.json(receivedWebhookEvents);
-});
-
-const languagePaginationMap = {};
 const userModes = {};
-
-const sendMessage = async (id, msg, tk) => axios.post(
-  `https://graph.facebook.com/v11.0/me/messages`,
-  { recipient: { id }, message: typeof msg === 'object' ? msg : { text: msg } },
-  { params: { access_token: tk } }
-).catch(e => {
-  console.error("❌ sendMessage error:", e.response?.data || e.message);
-});
+const languagePaginationMap = {};
 
 const sendModeQuickReply = (id, tk) => sendMessage(id, {
   text: "Choisissez un mode :",
@@ -226,23 +166,25 @@ const translateText = async (txt, lang) => {
 };
 
 const chatWithAI = async (msg, id, tk) => {
-  const prefix = `[Ignore image req, pas de LaTeX...] `;
-  const url = `https://kaiz-apis.gleeze.com/api/gpt-4o-pro?ask=${encodeURIComponent(prefix + msg)}&uid=${id}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
-  let text = 'Aucune réponse.';
+  const url = `https://kaiz-apis.gleeze.com/api/gpt-4o-pro?ask=${encodeURIComponent(msg)}&uid=${id}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
   try {
     const d = (await axios.get(url)).data;
-    if (Array.isArray(d.results)) text = "🔎 Résultats :\n" + d.results.slice(0, 5).map(r => `${r.title}\n${r.snippet}\n${r.link}`).join("\n\n");
-    else text = d.response || text;
-  } catch { }
-  return sendMessage(id, { text, quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }] }, tk);
+    const text = Array.isArray(d.results)
+      ? "🔎 Résultats :\n" + d.results.slice(0, 5).map(r => `${r.title}\n${r.snippet}\n${r.link}`).join("\n\n")
+      : d.response || 'Aucune réponse.';
+    return sendMessage(id, { text, quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }] }, tk);
+  } catch {
+    return sendMessage(id, "Erreur AI.", tk);
+  }
 };
 
 const handleQuickReply = async (evt, tk) => {
   const id = evt.sender.id, p = evt.message.quick_reply.payload;
-  if (p === "MODE_TRANSLATE") { userModes[id] = "translate"; return sendMessage(id, "📝 Mode Traduire. Envoyez un texte.", tk); }
-  if (p === "MODE_CHAT") { userModes[id] = "chat"; return sendMessage(id, "💬 Mode Discuter activé.", tk); }
+  if (p === "MODE_TRANSLATE") { userModes[id] = "translate"; return sendMessage(id, "📝 Envoyez un texte à traduire.", tk); }
+  if (p === "MODE_CHAT") { userModes[id] = "chat"; return sendMessage(id, "💬 Mode discuter activé.", tk); }
   if (p === "SWITCH_MODE") { delete userModes[id]; delete languagePaginationMap[id]; return sendModeQuickReply(id, tk); }
   if (p === "LANG_NEXT") { const s = languagePaginationMap[id]; return askForLanguage(id, s.orig, tk, s.page + 1); }
+
   const m = p.match(/^LANG_(\d+)_(.+)$/);
   if (m) {
     const s = languagePaginationMap[id];
@@ -253,7 +195,8 @@ const handleQuickReply = async (evt, tk) => {
 };
 
 const handleTextMessage = (evt, tk) => {
-  const id = evt.sender.id, txt = evt.message.text;
+  const id = evt.sender.id;
+  const txt = evt.message.text;
   if (!userModes[id]) return sendModeQuickReply(id, tk);
   if (userModes[id] === "translate") return askForLanguage(id, txt, tk, 0);
   if (userModes[id] === "chat") return chatWithAI(txt, id, tk);
@@ -272,10 +215,60 @@ const handleMessengerEvent = (evt, tk) => {
   if (evt.message?.text) return handleTextMessage(evt, tk);
 };
 
+app.post('/webhook', async (req, res) => {
+  const body = req.body;
+  if (body.object === 'page') {
+    for (const entry of body.entry) {
+      const pageID = entry.id;
+      const token = pageTokenMap[pageID];
+      if (!token) continue;
+
+      if (entry.changes) {
+        for (const change of entry.changes) {
+          const isCommentAdd =
+            change.value?.item === 'comment' &&
+            change.value?.verb === 'add';
+
+          if ((change.field === 'feed' || change.field === 'group_feed') && isCommentAdd) {
+            const message = change.value.message || "";
+            const commenterId = change.value.from?.id;
+            const commentId = change.value.comment_id;
+
+            if (/ok/i.test(message) && commenterId && commentId) {
+              await sendMessage(commenterId, "Veuillez choisir une option.", token);
+              await sendPrivateReplyWithMenu(commentId, token);
+            }
+          }
+        }
+      }
+
+      if (entry.messaging) {
+        for (const evt of entry.messaging) {
+          await handleMessengerEvent(evt, token);
+        }
+      }
+    }
+    return res.sendStatus(200);
+  }
+  res.sendStatus(404);
+});
+
+app.get('/setup', async (req, res) => {
+  const results = [];
+  for (const token of Object.values(pageTokenMap)) {
+    try {
+      const r = await axios.post(`https://graph.facebook.com/v18.0/me/messenger_profile`, {
+        get_started: { payload: "BYSOMBY" }
+      }, { params: { access_token: token } });
+      results.push({ ok: true, data: r.data });
+    } catch (e) {
+      results.push({ ok: false, error: e.message });
+    }
+  }
+  res.json(results);
+});
+
 (async () => {
   await subscribePages();
-
-  app.listen(PORT, () => {
-    console.log(`🚀 Server started on http://localhost:${PORT}`);
-  });
+  app.listen(PORT, () => console.log(`🚀 Running on http://localhost:${PORT}`));
 })();
