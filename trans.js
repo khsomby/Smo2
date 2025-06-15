@@ -75,7 +75,7 @@ const subscribePages = async () => {
       });
       const pageId = meRes.data.id;
       pageTokenMap[pageId] = token;
- axios.post(`https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`, {
+      await axios.post(`https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`, {
         subscribed_fields: ['feed', 'messages', 'messaging_postbacks', 'messaging_optins']
       }, { params: { access_token: token } });
 
@@ -103,9 +103,11 @@ app.get('/setup', async (req, res) => {
 
 const sendPrivateReply = async (commentId, message, token) => {
   try {
-    await axios.post(`https://graph.facebook.com/v18.0/${commentId}/private_replies`, {
-      message
+    await axios.post(`https://graph.facebook.com/v18.0/me/messages`, {
+      recipient: { comment_id: commentId },
+      message: { text: message }
     }, { params: { access_token: token } });
+    console.log(`✅ Replied privately to comment: ${commentId}`);
   } catch (e) {
     console.error("❌ Private reply failed:", e.response?.data || e.message);
   }
@@ -126,13 +128,16 @@ app.post('/webhook', async (req, res) => {
           if (change.field === 'feed' && change.value && change.value.comment_id) {
             const text = change.value.message;
             if (/ok/i.test(text)) {
-              await sendPrivateReply(change.value.comment_id, "Merci pour votre 'Ok' ! Manorata teny eo ambany eo raha hanao traduction na hametraka fanontaniana 😊", token);
+              await sendPrivateReply(
+                change.value.comment_id,
+                "Merci pour votre 'Ok' ! Manorata teny eo ambany eo raha hanao traduction na hametraka fanontaniana 😊",
+                token
+              );
             }
           }
         }
       }
 
-      // Messenger
       for (const evt of entry.messaging || []) {
         handleMessengerEvent(evt, token);
       }
@@ -219,7 +224,6 @@ const handleMessengerEvent = (evt,tk)=>{
   if(evt.message?.text) return handleTextMessage(evt,tk);
 };
 
-// Start server
 app.listen(PORT, async () => {
   console.log(`🚀 Server started on http://localhost:${PORT}`);
   await subscribePages();
