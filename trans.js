@@ -216,6 +216,28 @@ app.get('/webhook', (req, res) => {
   }
 });
 
+app.get('/set-webhook', async (req, res) => {
+  const callbackUrl = `https://${req.headers.host}/webhook`; // Replace with your HTTPS domain if needed
+  const results = [];
+
+  for (const token of PAGE_TOKENS) {
+    try {
+      await axios.post(`https://graph.facebook.com/v18.0/me/subscribed_apps`, null, {
+        params: {
+          access_token: token,
+          subscribed_fields: 'feed,messages,messaging_postbacks,messaging_optins'
+        }
+      });
+
+      results.push({ token, status: '✅ Webhook set' });
+    } catch (err) {
+      results.push({ token, error: err.response?.data || err.message });
+    }
+  }
+
+  res.json(results);
+});
+
 app.post('/webhook', async (req, res) => {
   const body = req.body;
   if (body.object === 'page') {
