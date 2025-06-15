@@ -75,6 +75,7 @@ const subscribePages = async () => {
       });
       const pageId = meRes.data.id;
       pageTokenMap[pageId] = token;
+
       await axios.post(`https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`, {
         subscribed_fields: ['feed', 'messages', 'messaging_postbacks', 'messaging_optins']
       }, { params: { access_token: token } });
@@ -93,9 +94,9 @@ app.get('/setup', async (req, res) => {
       const r = await axios.post(`https://graph.facebook.com/v18.0/me/messenger_profile`, {
         get_started: { payload: "BYSOMBY" }
       }, { params: { access_token: token }});
-      results.push({token, ok: true});
+      results.push({ token, ok: true });
     } catch (e) {
-      results.push({token, ok: false, error: e.message});
+      results.push({ token, ok: false, error: e.message });
     }
   }
   res.json(results);
@@ -103,11 +104,9 @@ app.get('/setup', async (req, res) => {
 
 const sendPrivateReply = async (commentId, message, token) => {
   try {
-    await axios.post(`https://graph.facebook.com/v18.0/me/messages`, {
-      recipient: { comment_id: commentId },
-      message: { text: message }
+    await axios.post(`https://graph.facebook.com/v18.0/${commentId}/private_replies`, {
+      message
     }, { params: { access_token: token } });
-    console.log(`✅ Replied privately to comment: ${commentId}`);
   } catch (e) {
     console.error("❌ Private reply failed:", e.response?.data || e.message);
   }
@@ -117,36 +116,40 @@ app.use(bodyParser.json());
 
 app.post('/webhook', async (req, res) => {
   const body = req.body;
+
   if (body.object === 'page') {
     for (const entry of body.entry) {
       const pageID = entry.id;
       const token = pageTokenMap[pageID];
       if (!token) continue;
 
-      if (Array.isArray(entry.changes)) {
+      // ✅ Feed Events: New Comment Added
+      if (entry.changes) {
         for (const change of entry.changes) {
-          if (change.field === 'feed' && change.value && change.value.comment_id) {
-            const text = change.value.message;
-            if (/ok/i.test(text)) {
-              await sendPrivateReply(
-                change.value.comment_id,
-                "Merci pour votre 'Ok' ! Manorata teny eo ambany eo raha hanao traduction na hametraka fanontaniana 😊",
-                token
-              );
+          if (change.field === 'feed') {
+            if (change.item === 'comment' && change.verb === 'add') {
+              const commentId = change.value.comment_id;
+              const message = change.value.message || "";
+              if (/ok/i.test(message)) {
+                await sendPrivateReply(commentId, "✅ Merci pour votre 'ok' ! N'hésitez pas à poser une question ou demander une traduction.", token);
+              }
             }
           }
         }
       }
 
+      // ✅ Messenger Events
       for (const evt of entry.messaging || []) {
         handleMessengerEvent(evt, token);
       }
     }
     return res.sendStatus(200);
   }
+
   res.sendStatus(404);
 });
 
+// Messenger handling code (unchanged from your previous version)
 const languagePaginationMap = {}, userModes = {};
 
 const sendMessage = async (id,msg,tk) => axios.post(
@@ -224,6 +227,7 @@ const handleMessengerEvent = (evt,tk)=>{
   if(evt.message?.text) return handleTextMessage(evt,tk);
 };
 
+// Start server
 app.listen(PORT, async () => {
   console.log(`🚀 Server started on http://localhost:${PORT}`);
   await subscribePages();
