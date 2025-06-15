@@ -219,7 +219,7 @@ const translateText = async (txt, lang) => {
   
 const chatWithAI = async (msg, id, tk) => {  
   const prefix = `[Ignore image req, pas de LaTeX...] `;  
-  const url = `https://kaiz-apis.gleeze.com/api/gpt-4o-pro?ask=${encodeURIComponent(prefix + msg)}&uid=${id}&apikey=...`;  
+  const url = `https://kaiz-apis.gleeze.com/api/gpt-4o-pro?ask=${encodeURIComponent(prefix + msg)}&uid=${id}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;  
   let text = 'Aucune réponse.';  
   try {  
     const d = (await axios.get(url)).data;  
