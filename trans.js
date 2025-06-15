@@ -102,20 +102,6 @@ app.get('/setup', async (req, res) => {
   res.json(results);
 });
 
-const sendPrivateReply = async (commentId, message, token) => {
-  try {
-    await axios.post(`https://graph.facebook.com/v18.0/me/messages`, {
-      recipient: { comment_id: commentId },
-      message: { text: message },
-      messaging_type: "RESPONSE"
-    }, {
-      params: { access_token: token }
-    });
-  } catch (e) {
-    console.error("❌ Private reply failed:", e.response?.data || e.message);
-  }
-};
-
 app.use(bodyParser.json());
 
 app.get('/webhook', (req, res) => {
@@ -155,10 +141,28 @@ app.post('/webhook', async (req, res) => {
           if (change.field === 'feed' && change.item === 'comment' && change.verb === 'add') {
             const commentId = change.value.comment_id;
             const message = change.value.message || "";
-            console.log(`📝 New comment on feed: ${message} (comment_id: ${commentId})`);
+            const fromId = change.value.from?.id;
+
+            console.log(`📝 New comment on feed: ${message} (comment_id: ${commentId}, from_id: ${fromId})`);
 
             if (/ok/i.test(message)) {
-              await sendPrivateReply(commentId, "✅ Merci pour votre 'ok' ! N'hésitez pas à poser une question ou demander une traduction.", token);
+              // Send a private message to the commenter if user ID is known
+              if (fromId) {
+                try {
+                  await axios.post(`https://graph.facebook.com/v18.0/me/messages`, {
+                    recipient: { id: fromId },
+                    message: { text: "✅ Merci pour votre 'ok' ! N'hésitez pas à poser une question ou demander une traduction." },
+                    messaging_type: "RESPONSE"
+                  }, {
+                    params: { access_token: token }
+                  });
+                  console.log(`✅ Sent private reply to user ${fromId}`);
+                } catch (e) {
+                  console.error("❌ Failed to send private reply:", e.response?.data || e.message);
+                }
+              } else {
+                console.warn("⚠️ No user ID found for private reply");
+              }
             }
           }
         }
@@ -176,7 +180,6 @@ app.post('/webhook', async (req, res) => {
 
   res.sendStatus(404);
 });
-
 
 const languagePaginationMap = {};
 const userModes = {};
@@ -196,6 +199,19 @@ const sendModeQuickReply = (id, tk) => sendMessage(id, {
     { content_type: "text", title: "💬 Discuter", payload: "MODE_CHAT" }
   ]
 }, tk);
+
+const LANGUAGES = [
+  { name: "Français", code: "fr" },
+  { name: "English", code: "en" },
+  { name: "Español", code: "es" },
+  { name: "Deutsch", code: "de" },
+  { name: "Italiano", code: "it" },
+  { name: "Português", code: "pt" },
+  { name: "Русский", code: "ru" },
+  { name: "中文", code: "zh-CN" },
+  { name: "日本語", code: "ja" },
+  // Add more languages if needed
+];
 
 const askForLanguage = (id, orig, tk, page = 0) => {
   languagePaginationMap[id] = { orig, page };
