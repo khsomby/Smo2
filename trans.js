@@ -1,4 +1,3 @@
-
 const LANGUAGES = [
   { code: "mg", name: "Malagasy 🇲🇬" },
   { code: "en", name: "Anglais 🇬🇧" },
@@ -235,8 +234,8 @@ const handleQuickReply = async (event, token) => {
   const payload = event.message.quick_reply.payload;
 
   if (payload === "MODE_TRANSLATE") {
-    userModes[senderID] = "translate";
-    return askForLanguage(senderID, null, token, 0);
+    userModes[senderID] = "translate_awaiting_text";
+    return sendMessage(senderID, `📝 Mode "Traduire" activé. Veuillez envoyer le texte à traduire.`, token);
   }
 
   if (payload === "MODE_CHAT") {
@@ -297,9 +296,14 @@ const handleTextMessage = async (event, token) => {
     return sendModeQuickReply(senderID, token);
   }
 
-  if (userModes[senderID] === "translate") {
+  if (userModes[senderID] === "translate_awaiting_text") {
+    userModes[senderID] = "translate";
     return askForLanguage(senderID, message, token, 0);
   }
+
+if (userModes[senderID] === "translate") {
+  return sendMessage(senderID, `⏳ Veuillez choisir une langue de traduction.`, token);
+}
 
   if (userModes[senderID] === "chat") {
     return chatWithAI(message, senderID, token);
