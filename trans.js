@@ -135,48 +135,53 @@ app.get('/webhook', (req, res) => {
   }  
 });  
   
-app.post('/webhook', async (req, res) => {  
-  const body = req.body;  
-  
-  console.log("🔔 Received webhook event:", JSON.stringify(body, null, 2));  
-  
-  if (body.object === 'page') {  
-    for (const entry of body.entry) {  
-      const pageID = entry.id;  
-      const token = pageTokenMap[pageID];  
-      if (!token) {  
-        console.warn(`⚠️ No token found for page ${pageID}`);  
-        continue;  
-      }  
-  
-      // Handle feed changes like comments on posts  
-      if (entry.changes) {  
-        for (const change of entry.changes) {  
-          if (change.field === 'feed' && change.item === 'comment' && change.verb === 'add') {  
-            const commentId = change.value.comment_id;  
-            const message = change.value.message || "";  
-            console.log(`📝 New comment on feed: ${message} (comment_id: ${commentId})`);  
-  
-            if (/ok/i.test(message)) {  
-              await sendPrivateReply(commentId, "✅ Merci pour votre 'ok' ! N'hésitez pas à poser une question ou demander une traduction.", token);  
-            }  
-          }  
-        }  
-      }  
-  
-      // Handle messenger events (messages, postbacks, etc)  
-      if (entry.messaging) {  
-        for (const evt of entry.messaging) {  
-          handleMessengerEvent(evt, token);  
-        }  
-      }  
-    }  
-    return res.sendStatus(200);  
-  }  
-  
-  res.sendStatus(404);  
+const receivedWebhookEvents = [];
+
+app.post('/webhook', async (req, res) => {
+  const body = req.body;
+
+  receivedWebhookEvents.push(body);
+
+  console.log("🔔 Received webhook event:", JSON.stringify(body, null, 2));
+
+  if (body.object === 'page') {
+    for (const entry of body.entry) {
+      const pageID = entry.id;
+      const token = pageTokenMap[pageID];
+      if (!token) {
+        console.warn(`⚠️ No token found for page ${pageID}`);
+        continue;
+      }
+
+      if (entry.changes) {
+        for (const change of entry.changes) {
+          if (change.field === 'feed' && change.item === 'comment' && change.verb === 'add') {
+            const commentId = change.value.comment_id;
+            const message = change.value.message || "";
+            console.log(`📝 New comment on feed: ${message} (comment_id: ${commentId})`);
+
+            if (/ok/i.test(message)) {
+              await sendPrivateReply(commentId, "✅ Merci pour votre 'ok' ! N'hésitez pas à poser une question ou demander une traduction.", token);
+            }
+          }
+        }
+      }
+
+      if (entry.messaging) {
+        for (const evt of entry.messaging) {
+          handleMessengerEvent(evt, token);
+        }
+      }
+    }
+    return res.sendStatus(200);
+  }
+
+  res.sendStatus(404);
+});
+
+app.get('/events', (req, res) => {
+  res.json(receivedWebhookEvents);
 });  
-  
   
 const languagePaginationMap = {};  
 const userModes = {};  
@@ -263,8 +268,7 @@ const handleMessengerEvent = (evt, tk) => {
   if (evt.message?.quick_reply) return handleQuickReply(evt, tk);  
   if (evt.message?.text) return handleTextMessage(evt, tk);  
 };  
-  
-// Start server  
+
 app.listen(PORT, async () => {  
   console.log(`🚀 Server started on http://localhost:${PORT}`);  
   await subscribePages();  
