@@ -267,7 +267,7 @@ const handleQuickReply = async (event, token) => {
     }
     const selectedPage = parseInt(pageStr);
     if (selectedPage !== state.page) {
-      return sendMessage(senderID, "⚠️ Perimé, token);
+      return sendMessage(senderID, "⚠️ Langage Perimée", token);
     }
 
     const originalMessage = state.originalMessage;
