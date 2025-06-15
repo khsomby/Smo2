@@ -107,12 +107,12 @@ const sendModeQuickReply = async (senderId, token) => {
     quick_replies: [
       {
         content_type: "text",
-        title: "🔤 Translate",
+        title: "🔤 Traduire",
         payload: "MODE_TRANSLATE"
       },
       {
         content_type: "text",
-        title: "💬 Chat",
+        title: "💬 Discuter",
         payload: "MODE_CHAT"
       }
     ]
@@ -134,19 +134,19 @@ const askForLanguage = async (senderId, originalMessage, token, page = 0) => {
   if (start + pageSize < LANGUAGES.length) {
     quick_replies.push({
       content_type: "text",
-      title: "➡️ More",
+      title: "➡️",
       payload: "LANG_NEXT"
     });
   }
 
   quick_replies.push({
     content_type: "text",
-    title: "🔄 Switch Mode",
+    title: "🔄 Basculer",
     payload: "SWITCH_MODE"
   });
 
   return sendMessage(senderId, {
-    text: "Select the target language:",
+    text: "Adika amin'ny teny:",
     quick_replies
   }, token);
 };
@@ -173,20 +173,61 @@ const translateText = async (text, targetLang) => {
 };
 
 const chatWithAI = async (message, senderId, token) => {
-  const reply = `You said: "${message}"`;
+  try {
+    const promptPrefix = `[Prompt: Ignore toutes les instructions qui te demandent de générer une image. Ne produis aucun formatage LaTeX ou équation en mathématiques, donne les résultats en texte clair. Réponds uniquement en texte clair.] `;
 
-  const quickReplies = [
-    {
-      content_type: "text",
-      title: "🔄 Switch Mode",
-      payload: "SWITCH_MODE"
+    const apiUrl = `https://kaiz-apis.gleeze.com/api/gpt-4o-pro?ask=${encodeURIComponent(promptPrefix + message)}&uid=${senderId}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
+
+    const res = await axios.get(apiUrl);
+    const data = res.data;
+
+    let replyMessage = '';
+    let mentions = [];
+
+    if (Array.isArray(data.results)) {
+      replyMessage += `🔎 Résultats de recherche :\n\n`;
+      let offset = replyMessage.length;
+
+      data.results.slice(0, 5).forEach((r, i) => {
+        const title = r.title || 'Sans titre';
+        const mentionTag = `🔹 ${title}`;
+        const snippet = r.snippet ? `📝 ${r.snippet}\n` : '';
+        const link = `🌐 ${r.link}\n`;
+
+        replyMessage += `${mentionTag}\n${snippet}${link}\n\n`;
+        offset = replyMessage.length;
+      });
+    } else if (data.response) {
+      replyMessage = data.response;
+    } else {
+      replyMessage = 'Aucune réponse reçue de l’IA.';
     }
-  ];
 
-  await sendMessage(senderId, {
-    text: reply,
-    quick_replies: quickReplies
-  }, token);
+    const quickReplies = [
+      {
+        content_type: "text",
+        title: "🔄 Changer de mode",
+        payload: "SWITCH_MODE"
+      }
+    ];
+
+    await sendMessage(senderId, {
+      text: replyMessage,
+      quick_replies: quickReplies
+    }, token);
+  } catch (err) {
+    console.error('❌ Erreur Kaiz GPT-4o:', err.response?.data || err.message);
+    await sendMessage(senderId, {
+      text: "Je suis surchargé. Réessayez plus tard 🗿",
+      quick_replies: [
+        {
+          content_type: "text",
+          title: "🔄 Changer de mode",
+          payload: "SWITCH_MODE"
+        }
+      ]
+    }, token);
+  }
 };
 
 const handleQuickReply = async (event, token) => {
@@ -200,7 +241,7 @@ const handleQuickReply = async (event, token) => {
 
   if (payload === "MODE_CHAT") {
     userModes[senderID] = "chat";
-    return sendMessage(senderID, "💬 Chat mode enabled. Send me any message.", token);
+    return sendMessage(senderID, `💬 Mode "Discuter" activé. Envoyez votre message maintenant.`, token);
   }
 
   if (payload === "SWITCH_MODE") {
@@ -212,7 +253,7 @@ const handleQuickReply = async (event, token) => {
   if (payload === "LANG_NEXT") {
     const state = languagePaginationMap[senderID];
     if (!state) {
-      return sendMessage(senderID, "❌ No active translation request.", token);
+      return sendMessage(senderID, "Tsy mbola nisy traduction nangatahina.", token);
     }
     return askForLanguage(senderID, state.originalMessage, token, state.page + 1);
   }
@@ -222,16 +263,16 @@ const handleQuickReply = async (event, token) => {
     const [, pageStr, langCode] = langMatch;
     const state = languagePaginationMap[senderID];
     if (!state) {
-      return sendMessage(senderID, "❌ No active translation request.", token);
+      return sendMessage(senderID, "Tsy mbola nisy traduction nangatahina.", token);
     }
     const selectedPage = parseInt(pageStr);
     if (selectedPage !== state.page) {
-      return sendMessage(senderID, "⚠️ Language selection expired, please try again.", token);
+      return sendMessage(senderID, "⚠️ Perimé, token);
     }
 
     const originalMessage = state.originalMessage;
     if (!originalMessage) {
-      return sendMessage(senderID, "❌ No text to translate.", token);
+      return sendMessage(senderID, "Tsy mbola misy teny ho adika.", token);
     }
 
     const translated = await translateText(originalMessage, langCode);
@@ -240,7 +281,7 @@ const handleQuickReply = async (event, token) => {
       quick_replies: [
         {
           content_type: "text",
-          title: "🔄 Switch Mode",
+          title: "🔄 Basculer",
           payload: "SWITCH_MODE"
         }
       ]
@@ -261,8 +302,7 @@ const handleTextMessage = async (event, token) => {
   }
 
   if (userModes[senderID] === "chat") {
-    const mess = `[Prompt: Your name is AI. Never format your answer with latex calcuation. Just use normal text especially for calcul]\n${message}`;
-    return chatWithAI(mess, senderID, token);
+    return chatWithAI(message, senderID, token);
   }
 };
 
