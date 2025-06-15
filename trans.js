@@ -272,7 +272,10 @@ const handleMessengerEvent = (evt, tk) => {
   if (evt.message?.text) return handleTextMessage(evt, tk);
 };
 
-app.listen(PORT, async () => {
-  console.log(`🚀 Server started on http://localhost:${PORT}`);
+(async () => {
   await subscribePages();
-});
+
+  app.listen(PORT, () => {
+    console.log(`🚀 Server started on http://localhost:${PORT}`);
+  });
+})();
