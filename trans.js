@@ -200,18 +200,6 @@ const sendModeQuickReply = (id, tk) => sendMessage(id, {
   ]
 }, tk);
 
-const LANGUAGES = [
-  { name: "Français", code: "fr" },
-  { name: "English", code: "en" },
-  { name: "Español", code: "es" },
-  { name: "Deutsch", code: "de" },
-  { name: "Italiano", code: "it" },
-  { name: "Português", code: "pt" },
-  { name: "Русский", code: "ru" },
-  { name: "中文", code: "zh-CN" },
-  { name: "日本語", code: "ja" },
-  // Add more languages if needed
-];
 
 const askForLanguage = (id, orig, tk, page = 0) => {
   languagePaginationMap[id] = { orig, page };
