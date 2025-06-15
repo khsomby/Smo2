@@ -104,11 +104,10 @@ app.get('/setup', async (req, res) => {
 
 const sendPrivateReplyWithMenu = async (commentId, token) => {
   try {
-    // Send normal text
     await axios.post(`https://graph.facebook.com/v18.0/me/messages`, {
       recipient: { comment_id: commentId },
       message: {
-        text: "✅ Merci pour votre 'ok' !",
+        text: "✅ Merci pour votre commentaire sur notre publication ! N'hésitez pas à poser une question ou demander une traduction !",
         quick_replies: [
           { content_type: "text", title: "🔤 Traduire", payload: "MODE_TRANSLATE" },
           { content_type: "text", title: "💬 Discuter", payload: "MODE_CHAT" }
@@ -164,7 +163,7 @@ app.post('/webhook', async (req, res) => {
             const commentId = change.value.comment_id;
 
             if (/ok/i.test(message) && commenterId && commentId) {
-              await sendMessage(commenterId, "✅ Merci pour votre commentaire sur notre publication ! N'hésitez pas à poser une question ou demander une traduction.", token);  
+              await sendMessage(commenterId, "Veuillez choisir une option.", token);  
               await sendPrivateReplyWithMenu(commentId, token);
             }
           }
