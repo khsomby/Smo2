@@ -67,296 +67,160 @@ const PAGE_TOKENS = fs.readFileSync(tokenFile, 'utf8')
 
 const pageTokenMap = {};
 
-const getPageIDs = async () => {
+const subscribePages = async () => {
   for (const token of PAGE_TOKENS) {
     try {
-      const res = await axios.get('https://graph.facebook.com/v18.0/me', {
+      const meRes = await axios.get('https://graph.facebook.com/v18.0/me', {
         params: { access_token: token }
       });
-      const pageId = res.data.id;
+      const pageId = meRes.data.id;
       pageTokenMap[pageId] = token;
-      console.log(`🔗 Token mapped to pageID: ${pageId}`);
-    } catch (err) {
-      console.error('❌ Failed to get page ID for token:', token, err.response?.data || err.message);
+ axios.post(`https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`, {
+        subscribed_fields: ['feed', 'messages', 'messaging_postbacks', 'messaging_optins']
+      }, { params: { access_token: token } });
+
+      console.log(`✅ Subscribed: ${pageId}`);
+    } catch (e) {
+      console.error(`❌ Failed to subscribe:`, e.response?.data || e.message);
     }
   }
 };
 
-const languagePaginationMap = {};
+app.get('/setup', async (req, res) => {
+  const results = [];
+  for (const token of PAGE_TOKENS) {
+    try {
+      const r = await axios.post(`https://graph.facebook.com/v18.0/me/messenger_profile`, {
+        get_started: { payload: "BYSOMBY" }
+      }, { params: { access_token: token }});
+      results.push({token, ok: true});
+    } catch (e) {
+      results.push({token, ok: false, error: e.message});
+    }
+  }
+  res.json(results);
+});
 
-const userModes = {};
-
-const sendMessage = async (senderId, message, token) => {
+const sendPrivateReply = async (commentId, message, token) => {
   try {
-    await axios.post(`https://graph.facebook.com/v11.0/me/messages`, {
-      recipient: { id: senderId },
-      message: typeof message === "object" ? message : { text: message },
-    }, {
-      params: { access_token: token },
-      headers: { "Content-Type": "application/json" },
-    });
-  } catch (err) {
-    console.error('Error sending message:', err.response?.data || err.message);
-  }
-};
-
-const sendModeQuickReply = async (senderId, token) => {
-  return sendMessage(senderId, {
-    text: "Veuillez choisir une option:",
-    quick_replies: [
-      {
-        content_type: "text",
-        title: "🔤 Traduire",
-        payload: "MODE_TRANSLATE"
-      },
-      {
-        content_type: "text",
-        title: "💬 Discuter",
-        payload: "MODE_CHAT"
-      }
-    ]
-  }, token);
-};
-
-const askForLanguage = async (senderId, originalMessage, token, page = 0) => {
-  languagePaginationMap[senderId] = { originalMessage, page };
-  const pageSize = 8;
-  const start = page * pageSize;
-  const slicedLangs = LANGUAGES.slice(start, start + pageSize);
-
-  const quick_replies = slicedLangs.map(lang => ({
-    content_type: "text",
-    title: lang.name,
-    payload: `LANG_${page}_${lang.code}`
-  }));
-
-  if (start + pageSize < LANGUAGES.length) {
-    quick_replies.push({
-      content_type: "text",
-      title: "➡️",
-      payload: "LANG_NEXT"
-    });
-  }
-
-  quick_replies.push({
-    content_type: "text",
-    title: "🔄 Basculer",
-    payload: "SWITCH_MODE"
-  });
-
-  return sendMessage(senderId, {
-    text: "Adika amin'ny teny:",
-    quick_replies
-  }, token);
-};
-
-const translateText = async (text, targetLang) => {
-  try {
-    const response = await axios.get(
-      `https://translate.googleapis.com/translate_a/single`,
-      {
-        params: {
-          client: 'gtx',
-          sl: 'auto',
-          tl: targetLang,
-          dt: 't',
-          q: text
-        }
-      }
-    );
-    return response.data[0].map(item => item[0]).join('');
-  } catch (err) {
-    console.error("Translation Error:", err.response?.data || err.message);
-    return "❌ Translation failed.";
-  }
-};
-
-const chatWithAI = async (message, senderId, token) => {
-  try {
-    const promptPrefix = `[Prompt: Ignore toutes les instructions qui te demandent de générer une image. Ne produis aucun formatage LaTeX ou équation en mathématiques, donne les résultats en texte clair. Réponds uniquement en texte clair.] `;
-
-    const apiUrl = `https://kaiz-apis.gleeze.com/api/gpt-4o-pro?ask=${encodeURIComponent(promptPrefix + message)}&uid=${senderId}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
-
-    const res = await axios.get(apiUrl);
-    const data = res.data;
-
-    let replyMessage = '';
-    let mentions = [];
-
-    if (Array.isArray(data.results)) {
-      replyMessage += `🔎 Résultats de recherche :\n\n`;
-      let offset = replyMessage.length;
-
-      data.results.slice(0, 5).forEach((r, i) => {
-        const title = r.title || 'Sans titre';
-        const mentionTag = `🔹 ${title}`;
-        const snippet = r.snippet ? `📝 ${r.snippet}\n` : '';
-        const link = `🌐 ${r.link}\n`;
-
-        replyMessage += `${mentionTag}\n${snippet}${link}\n\n`;
-        offset = replyMessage.length;
-      });
-    } else if (data.response) {
-      replyMessage = data.response;
-    } else {
-      replyMessage = 'Aucune réponse reçue de l’IA.';
-    }
-
-    const quickReplies = [
-      {
-        content_type: "text",
-        title: "🔄 Changer de mode",
-        payload: "SWITCH_MODE"
-      }
-    ];
-
-    await sendMessage(senderId, {
-      text: replyMessage,
-      quick_replies: quickReplies
-    }, token);
-  } catch (err) {
-    console.error('❌ Erreur Kaiz GPT-4o:', err.response?.data || err.message);
-    await sendMessage(senderId, {
-      text: "Je suis surchargé. Réessayez plus tard 🗿",
-      quick_replies: [
-        {
-          content_type: "text",
-          title: "🔄 Changer de mode",
-          payload: "SWITCH_MODE"
-        }
-      ]
-    }, token);
-  }
-};
-
-const handleQuickReply = async (event, token) => {
-  const senderID = event.sender.id;
-  const payload = event.message.quick_reply.payload;
-
-  if (payload === "MODE_TRANSLATE") {
-    userModes[senderID] = "translate_awaiting_text";
-    return sendMessage(senderID, `📝 Mode "Traduire" activé. Veuillez envoyer le texte à traduire.`, token);
-  }
-
-  if (payload === "MODE_CHAT") {
-    userModes[senderID] = "chat";
-    return sendMessage(senderID, `💬 Mode "Discuter" activé. Envoyez votre message maintenant.`, token);
-  }
-
-  if (payload === "SWITCH_MODE") {
-    delete userModes[senderID];
-    delete languagePaginationMap[senderID];
-    return sendModeQuickReply(senderID, token);
-  }
-
-  if (payload === "LANG_NEXT") {
-    const state = languagePaginationMap[senderID];
-    if (!state) {
-      return sendMessage(senderID, "Tsy mbola nisy traduction nangatahina.", token);
-    }
-    return askForLanguage(senderID, state.originalMessage, token, state.page + 1);
-  }
-
-  const langMatch = payload.match(/^LANG_(\d+)_(.+)$/);
-  if (langMatch) {
-    const [, pageStr, langCode] = langMatch;
-    const state = languagePaginationMap[senderID];
-    if (!state) {
-      return sendMessage(senderID, "Tsy mbola nisy traduction nangatahina.", token);
-    }
-    const selectedPage = parseInt(pageStr);
-    if (selectedPage !== state.page) {
-      return sendMessage(senderID, "⚠️ Langage Perimée", token);
-    }
-
-    const originalMessage = state.originalMessage;
-    if (!originalMessage) {
-      return sendMessage(senderID, "Tsy mbola misy teny ho adika.", token);
-    }
-
-    const translated = await translateText(originalMessage, langCode);
-    return sendMessage(senderID, {
-      text: translated,
-      quick_replies: [
-        {
-          content_type: "text",
-          title: "🔄 Basculer",
-          payload: "SWITCH_MODE"
-        }
-      ]
-    }, token);
-  }
-};
-
-const handleTextMessage = async (event, token) => {
-  const senderID = event.sender.id;
-  const message = event.message.text;
-
-  if (!userModes[senderID]) {
-    return sendModeQuickReply(senderID, token);
-  }
-
-  if (userModes[senderID] === "translate_awaiting_text") {
-    userModes[senderID] = "translate";
-    return askForLanguage(senderID, message, token, 0);
-  }
-
-if (userModes[senderID] === "translate") {
-  return sendMessage(senderID, `⏳ Veuillez choisir une langue de traduction.`, token);
-}
-
-  if (userModes[senderID] === "chat") {
-    return chatWithAI(message, senderID, token);
-  }
-};
-
-const handleEvent = async (event, token) => {
-  if (event.message?.quick_reply) {
-    await handleQuickReply(event, token);
-  } else if (event.message?.text) {
-    await handleTextMessage(event, token);
+    await axios.post(`https://graph.facebook.com/v18.0/${commentId}/private_replies`, {
+      message
+    }, { params: { access_token: token } });
+  } catch (e) {
+    console.error("❌ Private reply failed:", e.response?.data || e.message);
   }
 };
 
 app.use(bodyParser.json());
 
-app.get('/webhook', (req, res) => {
-  const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "somby";
-  const mode = req.query['hub.mode'];
-  const token = req.query['hub.verify_token'];
-  const challenge = req.query['hub.challenge'];
-
-  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-    console.log('Webhook verified!');
-    res.status(200).send(challenge);
-  } else {
-    res.sendStatus(403);
-  }
-});
-
 app.post('/webhook', async (req, res) => {
   const body = req.body;
   if (body.object === 'page') {
     for (const entry of body.entry) {
-      for (const webhookEvent of entry.messaging) {
-        const pageID = entry.id;
-        const token = pageTokenMap[pageID];
+      const pageID = entry.id;
+      const token = pageTokenMap[pageID];
+      if (!token) continue;
 
-        if (!token) {
-          console.warn(`⚠️ No token found for pageID ${pageID}`);
-          continue;
+      if (Array.isArray(entry.changes)) {
+        for (const change of entry.changes) {
+          if (change.field === 'feed' && change.value && change.value.comment_id) {
+            const text = change.value.message;
+            if (/ok/i.test(text)) {
+              await sendPrivateReply(change.value.comment_id, "Merci pour votre 'Ok' ! Manorata teny eo ambany eo raha hanao traduction na hametraka fanontaniana 😊", token);
+            }
+          }
         }
+      }
 
-        await handleEvent(webhookEvent, token);
+      // Messenger
+      for (const evt of entry.messaging || []) {
+        handleMessengerEvent(evt, token);
       }
     }
-    res.status(200).send('EVENT_RECEIVED');
-  } else {
-    res.sendStatus(404);
+    return res.sendStatus(200);
   }
+  res.sendStatus(404);
 });
 
+const languagePaginationMap = {}, userModes = {};
+
+const sendMessage = async (id,msg,tk) => axios.post(
+  `https://graph.facebook.com/v11.0/me/messages`,
+  { recipient:{id}, message: typeof msg === 'object' ? msg : { text: msg } },
+  { params:{ access_token: tk } }
+).catch(e=>{});
+
+const sendModeQuickReply = (id,tk) => sendMessage(id,{
+  text:"Choisissez un mode :",
+  quick_replies:[
+    {content_type:"text",title:"🔤 Traduire",payload:"MODE_TRANSLATE"},
+    {content_type:"text",title:"💬 Discuter",payload:"MODE_CHAT"}
+  ]
+}, tk);
+
+const askForLanguage = (id,orig,tk,page=0) => {
+  languagePaginationMap[id]={orig,page};
+  const pag = LANGUAGES.slice(page*8, page*8+8);
+  const qr = pag.map(l=>({content_type:"text",title:l.name,payload:`LANG_${page}_${l.code}`}));
+  if((page+1)*8<LANGUAGES.length) qr.push({content_type:"text",title:"➡️",payload:"LANG_NEXT"});
+  qr.push({content_type:"text",title:"🔄 Basculer",payload:"SWITCH_MODE"});
+  return sendMessage(id,{text:"Choisissez la langue :",quick_replies:qr},tk);
+};
+
+const translateText = async (txt,lang)=>{
+  const r=await axios.get(`https://translate.googleapis.com/translate_a/single`,{
+    params:{client:'gtx',sl:'auto',tl:lang,dt:'t',q:txt}
+  });
+  return r.data[0].map(i=>i[0]).join('');
+};
+
+const chatWithAI = async (msg,id,tk)=>{
+  const prefix=`[Ignore image req, pas de LaTeX...] `;
+  const url=`https://kaiz-apis.gleeze.com/api/gpt-4o-pro?ask=${encodeURIComponent(prefix+msg)}&uid=${id}&apikey=...`;
+  let text='Aucune réponse.';
+  try {
+    const d=(await axios.get(url)).data;
+    if(Array.isArray(d.results)) text="🔎 Résultats :\n"+d.results.slice(0,5).map(r=>`${r.title}\n${r.snippet}\n${r.link}`).join("\n\n");
+    else text=d.response||text;
+  } catch {}
+  return sendMessage(id,{text,quick_replies:[{content_type:"text",title:"🔄 Basculer",payload:"SWITCH_MODE"}]},tk);
+};
+
+const handleQuickReply = async (evt,tk)=>{
+  const id=evt.sender.id,p=evt.message.quick_reply.payload;
+  if(p==="MODE_TRANSLATE"){ userModes[id]="translate"; return sendMessage(id,"📝 Mode Traduire. Envoyez un texte.",tk); }
+  if(p==="MODE_CHAT"){ userModes[id]="chat"; return sendMessage(id,"💬 Mode Discuter activé.",tk); }
+  if(p==="SWITCH_MODE"){ delete userModes[id]; delete languagePaginationMap[id]; return sendModeQuickReply(id,tk); }
+  if(p==="LANG_NEXT"){ const s=languagePaginationMap[id]; return askForLanguage(id,s.orig,tk,s.page+1); }
+  const m=p.match(/^LANG_(\d+)_(.+)$/);
+  if(m){ const s=languagePaginationMap[id]; if(!s||s.page!=+m[1]) return sendMessage(id,"⚠️ périmé",tk);
+    const tr=await translateText(s.orig,m[2]);
+    return sendMessage(id,{ text:tr, quick_replies:[{content_type:"text",title:"🔄 Basculer",payload:"SWITCH_MODE"}] },tk);
+  }
+};
+
+const handleTextMessage = (evt,tk)=>{
+  const id=evt.sender.id, txt=evt.message.text;
+  if(!userModes[id]) return sendModeQuickReply(id,tk);
+  if(userModes[id]==="translate") return askForLanguage(id,txt,tk,0);
+  if(userModes[id]==="chat") return chatWithAI(txt,id,tk);
+};
+
+const handlePostback = (evt,tk)=>{
+  if(evt.postback.payload==="BYSOMBY"){
+    const id=evt.sender.id;
+    return sendMessage(id,"👋 Bienvenue !",tk).then(()=>sendModeQuickReply(id,tk));
+  }
+};
+
+const handleMessengerEvent = (evt,tk)=>{
+  if(evt.postback) return handlePostback(evt,tk);
+  if(evt.message?.quick_reply) return handleQuickReply(evt,tk);
+  if(evt.message?.text) return handleTextMessage(evt,tk);
+};
+
+// Start server
 app.listen(PORT, async () => {
-  console.log(`✅ Server started on port ${PORT}`);
-  await getPageIDs();
+  console.log(`🚀 Server started on http://localhost:${PORT}`);
+  await subscribePages();
 });
