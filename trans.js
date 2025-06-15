@@ -155,13 +155,14 @@ app.post('/webhook', async (req, res) => {
 
       if (entry.changes) {
         for (const change of entry.changes) {
-          if (change.field === 'feed' && change.item === 'comment' && change.verb === 'add') {
-            const commentId = change.value.comment_id;
+          if (change.field === 'feed' && change.value?.item === 'comment' && change.value?.verb === 'add') {
             const message = change.value.message || "";
-            console.log(`📝 New comment on feed: ${message} (comment_id: ${commentId})`);
+            const commenterId = change.value.from?.id;
 
-            if (/ok/i.test(message)) {
-              await sendPrivateReply(commentId, "✅ Merci pour votre 'ok' ! N'hésitez pas à poser une question ou demander une traduction.", token);
+            console.log(`📝 New comment: ${message} from ${commenterId}`);
+
+            if (/ok/i.test(message) && commenterId) {
+              await sendMessage(commenterId, "✅ Merci pour votre 'ok' ! N'hésitez pas à poser une question ou demander une traduction.", token);
             }
           }
         }
