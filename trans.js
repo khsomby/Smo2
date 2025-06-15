@@ -104,9 +104,13 @@ app.get('/setup', async (req, res) => {
 
 const sendPrivateReply = async (commentId, message, token) => {
   try {
-    await axios.post(`https://graph.facebook.com/v18.0/${commentId}/private_replies`, {
-      message
-    }, { params: { access_token: token } });
+    await axios.post(`https://graph.facebook.com/v18.0/me/messages`, {
+      recipient: { comment_id: commentId },
+      message: { text: message },
+      messaging_type: "RESPONSE"
+    }, {
+      params: { access_token: token }
+    });
   } catch (e) {
     console.error("❌ Private reply failed:", e.response?.data || e.message);
   }
@@ -123,7 +127,6 @@ app.post('/webhook', async (req, res) => {
       const token = pageTokenMap[pageID];
       if (!token) continue;
 
-      // ✅ Feed Events: New Comment Added
       if (entry.changes) {
         for (const change of entry.changes) {
           if (change.field === 'feed') {
@@ -138,7 +141,6 @@ app.post('/webhook', async (req, res) => {
         }
       }
 
-      // ✅ Messenger Events
       for (const evt of entry.messaging || []) {
         handleMessengerEvent(evt, token);
       }
@@ -149,7 +151,8 @@ app.post('/webhook', async (req, res) => {
   res.sendStatus(404);
 });
 
-// Messenger handling code (unchanged from your previous version)
+// -- Messenger Logic (same) --
+
 const languagePaginationMap = {}, userModes = {};
 
 const sendMessage = async (id,msg,tk) => axios.post(
