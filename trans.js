@@ -232,6 +232,7 @@ const handlePostback = (evt, tk) => {
 
 const handleMessengerEvent = async (evt, tk) => {
   const id = evt.sender.id;
+
   if (evt.postback) return handlePostback(evt, tk);
   if (evt.message?.quick_reply) return handleQuickReply(evt, tk);
 
@@ -239,11 +240,19 @@ const handleMessengerEvent = async (evt, tk) => {
   if (evt.message?.attachments?.[0]?.type === 'image') {
     if (userModes[id] === 'image') {
       const imageUrl = evt.message.attachments[0].payload.url;
-      userImageMap[id] = imageUrl;
-      return sendMessage(id, {
-        text: "✅ Image enregistrée. Maintenant, envoyez une description ou un prompt.",
-        quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }]
-      }, tk);
+
+      try {
+        await sendTyping(id, tk);
+        const url = `https://kaiz-apis.gleeze.com/api/gpt-4o-pro?ask=${encodeURIComponent("image of what is that ?")}&uid=${id}&imageUrl=${encodeURIComponent(imageUrl)}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
+        const resp = await axios.get(url);
+
+        return sendMessage(id, {
+          text: `🧠 ${resp.data.response || "Pas de réponse reçue."}`,
+          quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }]
+        }, tk);
+      } catch (e) {
+        return sendMessage(id, "❌ Erreur lors de l’analyse de l’image.", tk);
+      }
     } else if (userModes[id] === 'chat') {
       return sendMessage(id, "📸 Belle image ! Voulez-vous en parler ?", tk);
     } else {
@@ -264,20 +273,10 @@ const handleMessengerEvent = async (evt, tk) => {
     }
 
     if (userModes[id] === "image") {
-      const prompt = evt.message.text;
-      const uploadedImage = userImageMap[id] || "";
-      userImageMap[id] = null; // Clear after use
-
-      try {
-        const url = `https://kaiz-apis.gleeze.com/api/chatbotru-gen?prompt=${encodeURIComponent(prompt)}&model=realistic&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0${uploadedImage ? `&image=${encodeURIComponent(uploadedImage)}` : ''}`;
-        const resp = await axios.get(url);
-        return sendMessage(id, {
-          attachment: { type: "image", payload: { url: resp.data.url, is_reusable: true } },
-          quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }]
-        }, tk);
-      } catch {
-        return sendMessage(id, "❌ Erreur lors de la génération d'image.", tk);
-      }
+      return sendMessage(id, {
+        text: "📤 Veuillez envoyer une image à analyser.",
+        quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }]
+      }, tk);
     }
   }
 };
