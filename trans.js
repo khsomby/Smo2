@@ -51,24 +51,37 @@ const LANGUAGES = [
   { code: "zu", name: "Zoulou 🇿🇦" }
 ];
 
-const express = require('express');  
-const bodyParser = require('body-parser');  
-const axios = require("axios");  
-const fs = require('fs');  
+const express = require('express');
+const bodyParser = require('body-parser');
+const axios = require("axios");
+const fs = require('fs');
 
-const app = express();  
-const PORT = 8080;  
+const app = express();
+const PORT = 8080;
 
-const PAGE_TOKENS = fs.readFileSync('./token.txt', 'utf8')  
-  .split('\n')  
-  .map(t => t.trim())  
-  .filter(Boolean);  
+const PAGE_TOKENS = fs.readFileSync('./token.txt', 'utf8')
+  .split('\n')
+  .map(t => t.trim())
+  .filter(Boolean);
 
-const MAIN_TOKEN = PAGE_TOKENS[0];  
-const pageTokenMap = {};  
-const userModes = {};  
-const languagePaginationMap = {};  
+const MAIN_TOKEN = PAGE_TOKENS[0];
+const pageTokenMap = {};
+const userModes = {};
+const languagePaginationMap = {};
 const userImageMap = {};
+
+const LANGUAGES = [
+  { code: "mg", name: "Malagasy 🇲🇬" },
+  { code: "en", name: "Anglais 🇬🇧" },
+  { code: "fr", name: "Français 🇫🇷" },
+  { code: "zh", name: "Chinois 🇨🇳" },
+  { code: "es", name: "Espagnol 🇪🇸" },
+  { code: "pt", name: "Portugais 🇵🇹" },
+  { code: "de", name: "Allemand 🇩🇪" },
+  { code: "ar", name: "Arabe 🇸🇦" },
+  { code: "it", name: "Italien 🇮🇹" },
+  { code: "hi", name: "Hindi 🇮🇳" }
+];
 
 const subscribePages = async () => {
   try {
@@ -116,7 +129,7 @@ const sendPrivateReplyWithMenu = async (commentId, token) => {
     await axios.post(`https://graph.facebook.com/v18.0/me/messages`, {
       recipient: { comment_id: commentId },
       message: {
-        text: "✅ Merci pour votre commentaire sur notre publication ! N'hésitez pas à poser une question ou demander une traduction ou encore générer une image !",
+        text: "✅ Merci pour votre commentaire sur notre publication !",
         quick_replies: [
           { content_type: "text", title: "🔤 Traduire", payload: "MODE_TRANSLATE" },
           { content_type: "text", title: "💬 Discuter", payload: "MODE_CHAT" },
@@ -178,8 +191,8 @@ const handleQuickReply = async (evt, tk) => {
   const id = evt.sender.id;
   const p = evt.message.quick_reply.payload;
   if (p === "MODE_TRANSLATE") { userModes[id] = "translate"; return sendMessage(id, "📝 Mode Traduire. Envoyez un texte.", tk); }
-  if (p === "MODE_CHAT") { userModes[id] = "chat"; return sendMessage(id, "💬 Mode Discuter activé.", tk); }
-  if (p === "MODE_IMAGE") { userModes[id] = "image"; return sendMessage(id, "📤 Veuillez envoyer une image.", tk); }
+  if (p === "MODE_CHAT") { userModes[id] = "chat"; return sendMessage(id, "💬 Mode Discuter activé. Vous pouvez envoyer des images ou messages.", tk); }
+  if (p === "MODE_IMAGE") { userModes[id] = "image"; return sendMessage(id, "📝 Veuillez envoyer une description de l'image à générer.", tk); }
   if (p === "SWITCH_MODE") { delete userModes[id]; delete languagePaginationMap[id]; return sendModeQuickReply(id, tk); }
   if (p === "LANG_NEXT") { const s = languagePaginationMap[id]; return askForLanguage(id, s.orig, tk, s.page + 1); }
   const m = p.match(/^LANG_(\d+)_(.+)$/);
@@ -193,22 +206,18 @@ const handleQuickReply = async (evt, tk) => {
 
 const handleTextMessage = async (evt, tk) => {
   const id = evt.sender.id, txt = evt.message.text;
-  if (userModes[id] === "image" && userImageMap[id]) {
-    const img = userImageMap[id];
+  if (!userModes[id]) return sendModeQuickReply(id, tk);
+  if (userModes[id] === "translate") return askForLanguage(id, txt, tk, 0);
+  if (userModes[id] === "chat") return chatWithAI(txt, id, tk);
+  if (userModes[id] === "image") {
+    const url = `https://kaiz-apis.gleeze.com/api/chatbotru-gen?prompt=${encodeURIComponent(txt)}&model=realistic&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
     try {
-      const url = `https://kaiz-apis.gleeze.com/api/chatbotru-gen?prompt=${encodeURIComponent(txt)}&model=realistic&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0&imageUrl=${encodeURIComponent(img)}`;
-      await sendTyping(id, tk);
       const resp = await axios.get(url);
       await sendMessage(id, { attachment: { type: "image", payload: { url: resp.data.url, is_reusable: true } } }, tk);
     } catch {
       await sendMessage(id, "Erreur lors de la génération d'image.", tk);
     }
-    delete userImageMap[id];
-    return;
   }
-  if (!userModes[id]) return sendModeQuickReply(id, tk);
-  if (userModes[id] === "translate") return askForLanguage(id, txt, tk, 0);
-  if (userModes[id] === "chat") return chatWithAI(txt, id, tk);
 };
 
 const handlePostback = (evt, tk) => {
@@ -223,10 +232,12 @@ const handleMessengerEvent = async (evt, tk) => {
   if (evt.postback) return handlePostback(evt, tk);
   if (evt.message?.quick_reply) return handleQuickReply(evt, tk);
   if (evt.message?.text) return handleTextMessage(evt, tk);
-  if (evt.message?.attachments?.[0]?.type === 'image' && userModes[id] === 'image') {
-    const imageUrl = evt.message.attachments[0].payload.url;
-    userImageMap[id] = imageUrl;
-    return sendMessage(id, "📨 Merci ! Quel est votre question concernant cette photo ?", tk);
+  if (evt.message?.attachments?.[0]?.type === 'image') {
+    if (userModes[id] === 'chat') {
+      return sendMessage(id, "📷 Image reçue. Merci !", tk);
+    } else {
+      return sendMessage(id, "⚠️ Les images ne sont acceptées qu'en mode Discuter.", tk);
+    }
   }
 };
 
@@ -244,39 +255,23 @@ app.get('/webhook', (req, res) => {
   }
 });
 
-app.get('/set-webhook', async (req, res) => {
-  try {
-    await axios.post(`https://graph.facebook.com/v18.0/me/subscribed_apps`, null, {
-      params: {
-        access_token: MAIN_TOKEN,
-        subscribed_fields: 'feed,messages,messaging_postbacks,messaging_optins'
-      }
-    });
-    res.json({ token: MAIN_TOKEN, status: '✅ Webhook set' });
-  } catch (err) {
-    res.json({ token: MAIN_TOKEN, error: err.response?.data || err.message });
-  }
-});
-
 app.post('/webhook', async (req, res) => {
   const body = req.body;
   if (body.object === 'page') {
     for (const entry of body.entry) {
       const pageID = entry.id;
       const token = pageTokenMap[pageID];
-      if (!token) {
-        console.warn(`⚠️ No token for page ${pageID}`);
-        continue;
-      }
+      if (!token) continue;
 
       if (entry.changes) {
         for (const change of entry.changes) {
-          if (change.field === 'feed' && change.value.item === 'comment' && change.value.verb === 'add') {
-            const message = change.value.message || "";
-            const commenterId = change.value.from?.id;
-            const commentId = change.value.comment_id;
+          const v = change.value;
+          if (change.field === 'feed' && v.item === 'comment' && v.verb === 'add' && !v.parent_id) {
+            const message = v.message || "";
+            const commenterId = v.from?.id;
+            const commentId = v.comment_id;
             if (/ok/i.test(message)) {
-              await sendMessage(commenterId, "Veuillez choisir une option.", token);
+              await sendMessage(commenterId, "Veuillez choisir une option :", token);
               await sendPrivateReplyWithMenu(commentId, token);
             }
           }
