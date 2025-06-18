@@ -51,53 +51,61 @@ const LANGUAGES = [
   { code: "zu", name: "Zoulou 🇿🇦" }
 ];
 
-const express = require('express');
-const bodyParser = require('body-parser');
-const axios = require("axios");
-const fs = require('fs');
+const express = require('express');  
+const bodyParser = require('body-parser');  
+const axios = require("axios");  
+const fs = require('fs');  
 
-const app = express();
-const PORT = 8080;
+const app = express();  
+const PORT = 8080;  
 
-const PAGE_TOKENS = fs.readFileSync('./token.txt', 'utf8')
-  .split('\n')
-  .map(t => t.trim())
-  .filter(Boolean);
+const PAGE_TOKENS = fs.readFileSync('./token.txt', 'utf8')  
+  .split('\n')  
+  .map(t => t.trim())  
+  .filter(Boolean);  
 
-const pageTokenMap = {};
+const MAIN_TOKEN = PAGE_TOKENS[0];  
+const pageTokenMap = {};  
+const userModes = {};  
+const languagePaginationMap = {};  
+const userImageMap = {};
 
 const subscribePages = async () => {
-  for (const token of PAGE_TOKENS) {
-    try {
-      const res = await axios.get('https://graph.facebook.com/v18.0/me?fields=id,name', {
-        params: { access_token: token }
-      });
-      const pageId = res.data.id;
-      pageTokenMap[pageId] = token;
+  try {
+    const res = await axios.get('https://graph.facebook.com/v18.0/me?fields=id,name', {
+      params: { access_token: MAIN_TOKEN }
+    });
+    const pageId = res.data.id;
+    pageTokenMap[pageId] = MAIN_TOKEN;
 
-      await axios.post(`https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`, {
-        subscribed_fields: ['feed', 'messages', 'messaging_postbacks', 'messaging_optins']
-      }, {
-        params: { access_token: token }
-      });
+    await axios.post(`https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`, {
+      subscribed_fields: ['feed', 'messages', 'messaging_postbacks', 'messaging_optins']
+    }, {
+      params: { access_token: MAIN_TOKEN }
+    });
 
-      console.log(`✅ Subscribed and mapped page ${res.data.name} (${pageId})`);
-    } catch (err) {
-      console.error(`❌ Subscription failed:`, err.response?.data || err.message);
-    }
+    console.log(`✅ Subscribed and mapped page ${res.data.name} (${pageId})`);
+  } catch (err) {
+    console.error(`❌ Subscription failed:`, err.response?.data || err.message);
   }
 
   console.log("📌 Mapped pages:", Object.keys(pageTokenMap));
 };
 
+const sendTyping = async (id, tk) => {
+  await axios.post('https://graph.facebook.com/v11.0/me/messages', {
+    recipient: { id },
+    sender_action: "typing_on"
+  }, { params: { access_token: tk } });
+};
+
 const sendMessage = async (id, msg, tk) => {
   try {
+    await sendTyping(id, tk);
     await axios.post('https://graph.facebook.com/v11.0/me/messages', {
       recipient: { id },
       message: typeof msg === 'object' ? msg : { text: msg }
-    }, {
-      params: { access_token: tk }
-    });
+    }, { params: { access_token: tk } });
   } catch (err) {
     console.error("❌ sendMessage error:", err.response?.data || err.message);
   }
@@ -108,10 +116,11 @@ const sendPrivateReplyWithMenu = async (commentId, token) => {
     await axios.post(`https://graph.facebook.com/v18.0/me/messages`, {
       recipient: { comment_id: commentId },
       message: {
-        text: "✅ Merci pour votre commentaire sur notre publication ! N'hésitez pas à poser une question ou demander une traduction !",
+        text: "✅ Merci pour votre commentaire sur notre publication ! N'hésitez pas à poser une question ou demander une traduction ou encore générer une image !",
         quick_replies: [
           { content_type: "text", title: "🔤 Traduire", payload: "MODE_TRANSLATE" },
-          { content_type: "text", title: "💬 Discuter", payload: "MODE_CHAT" }
+          { content_type: "text", title: "💬 Discuter", payload: "MODE_CHAT" },
+          { content_type: "text", title: "🖼️ Générer Image", payload: "MODE_IMAGE" }
         ]
       },
       messaging_type: "RESPONSE"
@@ -125,7 +134,8 @@ const sendModeQuickReply = (id, tk) => sendMessage(id, {
   text: "Choisissez un mode :",
   quick_replies: [
     { content_type: "text", title: "🔤 Traduire", payload: "MODE_TRANSLATE" },
-    { content_type: "text", title: "💬 Discuter", payload: "MODE_CHAT" }
+    { content_type: "text", title: "💬 Discuter", payload: "MODE_CHAT" },
+    { content_type: "text", title: "🖼️ Générer Image", payload: "MODE_IMAGE" }
   ]
 }, tk);
 
@@ -140,9 +150,6 @@ const translateText = async (txt, lang) => {
   }
 };
 
-const userModes = {};
-const languagePaginationMap = {};
-
 const askForLanguage = (id, orig, tk, page = 0) => {
   languagePaginationMap[id] = { orig, page };
   const pag = LANGUAGES.slice(page * 8, page * 8 + 8);
@@ -153,7 +160,8 @@ const askForLanguage = (id, orig, tk, page = 0) => {
 };
 
 const chatWithAI = async (msg, id, tk) => {
-  const url = `https://kaiz-apis.gleeze.com/api/gpt-4o-pro?ask=${encodeURIComponent(msg)}&uid=${id}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
+  const mss = `[Prompt: Tu es une IA assistante et tu ne dois jamais générer une image et utiliser des latex ou des styles markdown dans tes réponses.]\n${msg}`;
+  const url = `https://kaiz-apis.gleeze.com/api/gpt-4o-pro?ask=${encodeURIComponent(mss)}&uid=${id}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
   let text = 'Aucune réponse.';
   try {
     const d = (await axios.get(url)).data;
@@ -171,6 +179,7 @@ const handleQuickReply = async (evt, tk) => {
   const p = evt.message.quick_reply.payload;
   if (p === "MODE_TRANSLATE") { userModes[id] = "translate"; return sendMessage(id, "📝 Mode Traduire. Envoyez un texte.", tk); }
   if (p === "MODE_CHAT") { userModes[id] = "chat"; return sendMessage(id, "💬 Mode Discuter activé.", tk); }
+  if (p === "MODE_IMAGE") { userModes[id] = "image"; return sendMessage(id, "📤 Veuillez envoyer une image.", tk); }
   if (p === "SWITCH_MODE") { delete userModes[id]; delete languagePaginationMap[id]; return sendModeQuickReply(id, tk); }
   if (p === "LANG_NEXT") { const s = languagePaginationMap[id]; return askForLanguage(id, s.orig, tk, s.page + 1); }
   const m = p.match(/^LANG_(\d+)_(.+)$/);
@@ -182,8 +191,21 @@ const handleQuickReply = async (evt, tk) => {
   }
 };
 
-const handleTextMessage = (evt, tk) => {
+const handleTextMessage = async (evt, tk) => {
   const id = evt.sender.id, txt = evt.message.text;
+  if (userModes[id] === "image" && userImageMap[id]) {
+    const img = userImageMap[id];
+    try {
+      const url = `https://kaiz-apis.gleeze.com/api/chatbotru-gen?prompt=${encodeURIComponent(txt)}&model=realistic&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0&imageUrl=${encodeURIComponent(img)}`;
+      await sendTyping(id, tk);
+      const resp = await axios.get(url);
+      await sendMessage(id, { attachment: { type: "image", payload: { url: resp.data.url, is_reusable: true } } }, tk);
+    } catch {
+      await sendMessage(id, "Erreur lors de la génération d'image.", tk);
+    }
+    delete userImageMap[id];
+    return;
+  }
   if (!userModes[id]) return sendModeQuickReply(id, tk);
   if (userModes[id] === "translate") return askForLanguage(id, txt, tk, 0);
   if (userModes[id] === "chat") return chatWithAI(txt, id, tk);
@@ -192,14 +214,20 @@ const handleTextMessage = (evt, tk) => {
 const handlePostback = (evt, tk) => {
   if (evt.postback.payload === "BYSOMBY") {
     const id = evt.sender.id;
-    return sendMessage(id, "👋 Bienvenue !", tk).then(() => sendModeQuickReply(id, tk));
+    return sendMessage(id, "👋 Bienvenue sur notre page ! Ecrivez 'Bot' pour commencer.", tk).then(() => sendModeQuickReply(id, tk));
   }
 };
 
-const handleMessengerEvent = (evt, tk) => {
+const handleMessengerEvent = async (evt, tk) => {
+  const id = evt.sender.id;
   if (evt.postback) return handlePostback(evt, tk);
   if (evt.message?.quick_reply) return handleQuickReply(evt, tk);
   if (evt.message?.text) return handleTextMessage(evt, tk);
+  if (evt.message?.attachments?.[0]?.type === 'image' && userModes[id] === 'image') {
+    const imageUrl = evt.message.attachments[0].payload.url;
+    userImageMap[id] = imageUrl;
+    return sendMessage(id, "📨 Merci ! Quel est votre question concernant cette photo ?", tk);
+  }
 };
 
 app.use(bodyParser.json());
@@ -217,25 +245,17 @@ app.get('/webhook', (req, res) => {
 });
 
 app.get('/set-webhook', async (req, res) => {
-  const callbackUrl = `https://${req.headers.host}/webhook`; // Replace with your HTTPS domain if needed
-  const results = [];
-
-  for (const token of PAGE_TOKENS) {
-    try {
-      await axios.post(`https://graph.facebook.com/v18.0/me/subscribed_apps`, null, {
-        params: {
-          access_token: token,
-          subscribed_fields: 'feed,messages,messaging_postbacks,messaging_optins'
-        }
-      });
-
-      results.push({ token, status: '✅ Webhook set' });
-    } catch (err) {
-      results.push({ token, error: err.response?.data || err.message });
-    }
+  try {
+    await axios.post(`https://graph.facebook.com/v18.0/me/subscribed_apps`, null, {
+      params: {
+        access_token: MAIN_TOKEN,
+        subscribed_fields: 'feed,messages,messaging_postbacks,messaging_optins'
+      }
+    });
+    res.json({ token: MAIN_TOKEN, status: '✅ Webhook set' });
+  } catch (err) {
+    res.json({ token: MAIN_TOKEN, error: err.response?.data || err.message });
   }
-
-  res.json(results);
 });
 
 app.post('/webhook', async (req, res) => {
