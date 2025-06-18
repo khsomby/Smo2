@@ -310,7 +310,7 @@ app.post('/webhook', async (req, res) => {
             if (/ok/i.test(message)) {
               await sendPublicCommentReply(commentId, "Misy message nalefanay aminao azafady ka mba jereo 😊", token);
               if (commenterId) {
-                await sendMessage(commenterId, "🤖 Hey you !", token);
+                await sendMessage(commenterId, "Chat GPT est ici pour vous 🤖", token);
               }
               await sendPrivateReplyWithMenu(commentId, token);
             }
