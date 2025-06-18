@@ -70,18 +70,6 @@ const userModes = {};
 const languagePaginationMap = {};
 const userImageMap = {};
 
-const LANGUAGES = [
-  { code: "mg", name: "Malagasy 🇲🇬" },
-  { code: "en", name: "Anglais 🇬🇧" },
-  { code: "fr", name: "Français 🇫🇷" },
-  { code: "zh", name: "Chinois 🇨🇳" },
-  { code: "es", name: "Espagnol 🇪🇸" },
-  { code: "pt", name: "Portugais 🇵🇹" },
-  { code: "de", name: "Allemand 🇩🇪" },
-  { code: "ar", name: "Arabe 🇸🇦" },
-  { code: "it", name: "Italien 🇮🇹" },
-  { code: "hi", name: "Hindi 🇮🇳" }
-];
 
 const subscribePages = async () => {
   try {
