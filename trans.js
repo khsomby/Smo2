@@ -308,9 +308,9 @@ app.post('/webhook', async (req, res) => {
             const commenterId = change.value.from?.id;
             const commentId = change.value.comment_id;
             if (/ok/i.test(message)) {
-              await sendPublicCommentReply(commentId, "👀 Merci pour votre retour !", token);
+              await sendPublicCommentReply(commentId, "Misy message nalefanay aminao azafady ka mba jereo 😊", token);
               if (commenterId) {
-                await sendMessage(commenterId, "🤖 Bonjour ! Ceci est une réponse privée automatique.", token);
+                await sendMessage(commenterId, "🤖 Hey you !", token);
               }
               await sendPrivateReplyWithMenu(commentId, token);
             }
