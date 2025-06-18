@@ -308,7 +308,7 @@ app.post('/webhook', async (req, res) => {
             const commenterId = change.value.from?.id;
             const commentId = change.value.comment_id;
             if (/ok/i.test(message)) {
-              await sendPublicCommentReply(commentId, "Misy message nalefanay aminao azafady ka mba jereo 😊", token);
+              await sendPublicCommentReply(commentId, "Mety mbola tsy arakao fa platforme IA izahay, andramo andefasana mesazy ange hijerenao azy e", token);
               if (commenterId) {
                 await sendMessage(commenterId, "Chat GPT est ici pour vous 🤖", token);
               }
