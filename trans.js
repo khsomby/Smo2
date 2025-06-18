@@ -69,7 +69,7 @@ const pageTokenMap = {};
 const userModes = {};
 const languagePaginationMap = {};
 const userImageMap = {};
-
+const handledWebhooks = [];
 
 const subscribePages = async () => {
   try {
@@ -81,9 +81,7 @@ const subscribePages = async () => {
 
     await axios.post(`https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`, {
       subscribed_fields: ['feed', 'messages', 'messaging_postbacks', 'messaging_optins']
-    }, {
-      params: { access_token: MAIN_TOKEN }
-    });
+    }, { params: { access_token: MAIN_TOKEN } });
 
     console.log(`✅ Subscribed and mapped page ${res.data.name} (${pageId})`);
   } catch (err) {
@@ -122,7 +120,7 @@ const sendMessage = async (id, msg, tk) => {
 
 const sendPrivateReplyWithMenu = async (commentId, token) => {
   try {
-    await axios.post(`https://graph.facebook.com/v18.0/me/messages`, {
+    await axios.post('https://graph.facebook.com/v18.0/me/messages', {
       recipient: { comment_id: commentId },
       message: {
         text: "✅ Merci pour votre commentaire sur notre publication ! Choisissez une option :",
@@ -139,6 +137,16 @@ const sendPrivateReplyWithMenu = async (commentId, token) => {
   }
 };
 
+const sendPublicCommentReply = async (commentId, message, token) => {
+  try {
+    await axios.post(`https://graph.facebook.com/v18.0/${commentId}/comments`, {
+      message
+    }, { params: { access_token: token } });
+  } catch (e) {
+    console.error("❌ Public comment reply failed:", e.response?.data || e.message);
+  }
+};
+
 const sendModeQuickReply = (id, tk) => sendMessage(id, {
   text: "Choisissez un mode :",
   quick_replies: [
@@ -150,10 +158,10 @@ const sendModeQuickReply = (id, tk) => sendMessage(id, {
 
 const translateText = async (txt, lang) => {
   try {
-    const r = await axios.get(`https://translate.googleapis.com/translate_a/single`, {
+    const res = await axios.get('https://translate.googleapis.com/translate_a/single', {
       params: { client: 'gtx', sl: 'auto', tl: lang, dt: 't', q: txt }
     });
-    return r.data[0].map(i => i[0]).join('');
+    return res.data[0].map(i => i[0]).join('');
   } catch {
     return "Erreur lors de la traduction.";
   }
@@ -207,8 +215,12 @@ const handleTextMessage = async (evt, tk) => {
   const id = evt.sender.id, txt = evt.message.text;
   if (!userModes[id]) return sendModeQuickReply(id, tk);
 
-  if (userModes[id] === "translate") return askForLanguage(id, txt, tk, 0);
-  if (userModes[id] === "chat") return chatWithAI(txt, id, tk);
+  if (userModes[id] === "translate") {
+    return askForLanguage(id, txt, tk, 0);
+  }
+  if (userModes[id] === "chat") {
+    return chatWithAI(txt, id, tk);
+  }
   if (userModes[id] === "image") {
     try {
       const url = `https://kaiz-apis.gleeze.com/api/chatbotru-gen?prompt=${encodeURIComponent(txt)}&model=realistic&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
@@ -226,31 +238,28 @@ const handleTextMessage = async (evt, tk) => {
 const handlePostback = (evt, tk) => {
   if (evt.postback.payload === "BYSOMBY") {
     const id = evt.sender.id;
-    return sendMessage(id, "👋 Bienvenue sur notre page ! Écrivez 'Bot' pour commencer.", tk).then(() => sendModeQuickReply(id, tk));
+    return sendMessage(id, "👋 Bienvenue sur notre page ! Écrivez 'Bot' pour commencer.", tk)
+      .then(() => sendModeQuickReply(id, tk));
   }
 };
 
 const handleMessengerEvent = async (evt, tk) => {
   const id = evt.sender.id;
-
   if (evt.postback) return handlePostback(evt, tk);
   if (evt.message?.quick_reply) return handleQuickReply(evt, tk);
 
-  // User sent an image
   if (evt.message?.attachments?.[0]?.type === 'image') {
     if (userModes[id] === 'image') {
       const imageUrl = evt.message.attachments[0].payload.url;
-
       try {
         await sendTyping(id, tk);
         const url = `https://kaiz-apis.gleeze.com/api/gpt-4o-pro?ask=${encodeURIComponent("image of what is that ?")}&uid=${id}&imageUrl=${encodeURIComponent(imageUrl)}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
         const resp = await axios.get(url);
-
         return sendMessage(id, {
           text: `🧠 ${resp.data.response || "Pas de réponse reçue."}`,
           quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }]
         }, tk);
-      } catch (e) {
+      } catch {
         return sendMessage(id, "❌ Erreur lors de l’analyse de l’image.", tk);
       }
     } else if (userModes[id] === 'chat') {
@@ -260,24 +269,8 @@ const handleMessengerEvent = async (evt, tk) => {
     }
   }
 
-  // User sent text
   if (evt.message?.text) {
-    if (!userModes[id]) return sendModeQuickReply(id, tk);
-
-    if (userModes[id] === "translate") {
-      return askForLanguage(id, evt.message.text, tk, 0);
-    }
-
-    if (userModes[id] === "chat") {
-      return chatWithAI(evt.message.text, id, tk);
-    }
-
-    if (userModes[id] === "image") {
-      return sendMessage(id, {
-        text: "📤 Veuillez envoyer une image à analyser.",
-        quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }]
-      }, tk);
-    }
+    return handleTextMessage(evt, tk);
   }
 };
 
@@ -289,14 +282,19 @@ app.get('/webhook', (req, res) => {
   const challenge = req.query['hub.challenge'];
   if (mode === 'subscribe' && token === 'somby') {
     console.log("✅ Webhook verified");
-    res.status(200).send(challenge);
-  } else {
-    res.sendStatus(403);
+    return res.status(200).send(challenge);
   }
+  res.sendStatus(403);
+});
+
+app.get('/webhook/handled', (req, res) => {
+  res.json({ count: handledWebhooks.length, logs: handledWebhooks });
 });
 
 app.post('/webhook', async (req, res) => {
   const body = req.body;
+  handledWebhooks.push(body);
+
   if (body.object === 'page') {
     for (const entry of body.entry) {
       const pageID = entry.id;
@@ -310,6 +308,10 @@ app.post('/webhook', async (req, res) => {
             const commenterId = change.value.from?.id;
             const commentId = change.value.comment_id;
             if (/ok/i.test(message)) {
+              await sendPublicCommentReply(commentId, "👀 Merci pour votre retour !", token);
+              if (commenterId) {
+                await sendMessage(commenterId, "🤖 Bonjour ! Ceci est une réponse privée automatique.", token);
+              }
               await sendPrivateReplyWithMenu(commentId, token);
             }
           }
@@ -322,10 +324,9 @@ app.post('/webhook', async (req, res) => {
         }
       }
     }
-    res.sendStatus(200);
-  } else {
-    res.sendStatus(404);
+    return res.sendStatus(200);
   }
+  res.sendStatus(404);
 });
 
 (async () => {
