@@ -234,12 +234,50 @@ const handleMessengerEvent = async (evt, tk) => {
   const id = evt.sender.id;
   if (evt.postback) return handlePostback(evt, tk);
   if (evt.message?.quick_reply) return handleQuickReply(evt, tk);
-  if (evt.message?.text) return handleTextMessage(evt, tk);
+
+  // User sent an image
   if (evt.message?.attachments?.[0]?.type === 'image') {
-    if (userModes[id] === 'chat') {
+    if (userModes[id] === 'image') {
+      const imageUrl = evt.message.attachments[0].payload.url;
+      userImageMap[id] = imageUrl;
+      return sendMessage(id, {
+        text: "✅ Image enregistrée. Maintenant, envoyez une description ou un prompt.",
+        quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }]
+      }, tk);
+    } else if (userModes[id] === 'chat') {
       return sendMessage(id, "📸 Belle image ! Voulez-vous en parler ?", tk);
     } else {
       return sendMessage(id, "❌ Ce mode ne permet pas d'envoyer des images. Essayez '💬 Discuter'.", tk);
+    }
+  }
+
+  // User sent text
+  if (evt.message?.text) {
+    if (!userModes[id]) return sendModeQuickReply(id, tk);
+
+    if (userModes[id] === "translate") {
+      return askForLanguage(id, evt.message.text, tk, 0);
+    }
+
+    if (userModes[id] === "chat") {
+      return chatWithAI(evt.message.text, id, tk);
+    }
+
+    if (userModes[id] === "image") {
+      const prompt = evt.message.text;
+      const uploadedImage = userImageMap[id] || "";
+      userImageMap[id] = null; // Clear after use
+
+      try {
+        const url = `https://kaiz-apis.gleeze.com/api/chatbotru-gen?prompt=${encodeURIComponent(prompt)}&model=realistic&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0${uploadedImage ? `&image=${encodeURIComponent(uploadedImage)}` : ''}`;
+        const resp = await axios.get(url);
+        return sendMessage(id, {
+          attachment: { type: "image", payload: { url: resp.data.url, is_reusable: true } },
+          quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }]
+        }, tk);
+      } catch {
+        return sendMessage(id, "❌ Erreur lors de la génération d'image.", tk);
+      }
     }
   }
 };
