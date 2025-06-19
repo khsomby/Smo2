@@ -69,7 +69,6 @@ const pageTokenMap = {};
 const userModes = {};
 const languagePaginationMap = {};
 const userImageMap = {};
-const handledWebhooks = [];
 
 const subscribePages = async () => {
   try {
