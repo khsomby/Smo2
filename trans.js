@@ -287,13 +287,8 @@ app.get('/webhook', (req, res) => {
   res.sendStatus(403);
 });
 
-app.get('/webhook/handled', (req, res) => {
-  res.json({ count: handledWebhooks.length, logs: handledWebhooks });
-});
-
 app.post('/webhook', async (req, res) => {
   const body = req.body;
-  handledWebhooks.push(body);
 
   if (body.object === 'page') {
     for (const entry of body.entry) {
