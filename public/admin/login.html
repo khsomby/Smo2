@@ -3,17 +3,94 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Accès Refusé</title>
-  <link rel="stylesheet" href="style.css">
+  <title>Connexion Admin</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f5f6f8;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    .container {
+      max-width: 500px;
+      margin: 50px auto;
+      background-color: white;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      padding: 30px;
+      text-align: center;
+    }
+    h1 {
+      color: #4267B2;
+      margin-bottom: 20px;
+    }
+    .error-message {
+      background-color: #ffebee;
+      color: #c62828;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      border-left: 4px solid #c62828;
+    }
+    .form-group {
+      margin-bottom: 20px;
+      text-align: left;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+    input[type="password"] {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-family: monospace;
+      font-size: 16px;
+    }
+    button {
+      background-color: #4267B2;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      width: 100%;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #365899;
+    }
+    .help-text {
+      margin-top: 20px;
+      font-size: 14px;
+      color: #666;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
-    <h1>Accès Refusé</h1>
-    <p>Vous devez fournir un token d'accès valide pour accéder à cette page.</p>
-    <form class="token-form" action="/admin" method="get">
-      <input type="text" name="access_token" placeholder="Entrez votre token d'accès" required>
-      <button type="submit">Accéder</button>
+    <h1>Connexion à l'Administration</h1>
+    
+    {{#error}}
+      <div class="error-message">{{error}}</div>
+    {{/error}}
+
+    <form method="POST" action="/adm/verify">
+      <div class="form-group">
+        <label for="access_token">Token d'accès Facebook</label>
+        <input type="password" id="access_token" name="access_token" required
+               placeholder="EAARScnebvp4BO9ucpomND8rKhbYnAZCa4G...">
+      </div>
+      <button type="submit">Se connecter</button>
     </form>
+
+    <div class="help-text">
+      <p>Obtenez votre token depuis le <a href="https://developers.facebook.com/tools/explorer/" target="_blank">Graph API Explorer</a></p>
+    </div>
   </div>
 </body>
 </html>
