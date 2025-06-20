@@ -55,40 +55,84 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const axios = require("axios");
 const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const PORT = 8080;
 
-const PAGE_TOKENS = fs.readFileSync('./token.txt', 'utf8')
+const PAGE_TOKENS_FILE = './token.txt';
+const KEYWORDS_FILE = './keywords.json';
+
+if (!fs.existsSync(KEYWORDS_FILE)) {
+  fs.writeFileSync(KEYWORDS_FILE, JSON.stringify({}));
+}
+
+const PAGE_TOKENS = fs.readFileSync(PAGE_TOKENS_FILE, 'utf8')
   .split('\n')
   .map(t => t.trim())
   .filter(Boolean);
 
-const MAIN_TOKEN = PAGE_TOKENS[0];
 const pageTokenMap = {};
 const userModes = {};
 const languagePaginationMap = {};
 const userImageMap = {};
+const pageKeywordsMap = {};
+const pageReplySettings = {};
 
-const subscribePages = async () => {
+const loadKeywords = () => {
   try {
-    const res = await axios.get('https://graph.facebook.com/v18.0/me?fields=id,name', {
-      params: { access_token: MAIN_TOKEN }
-    });
-    const pageId = res.data.id;
-    pageTokenMap[pageId] = MAIN_TOKEN;
-
-    await axios.post(`https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`, {
-      subscribed_fields: ['feed', 'messages', 'messaging_postbacks', 'messaging_optins']
-    }, { params: { access_token: MAIN_TOKEN } });
-
-    console.log(`✅ Subscribed and mapped page ${res.data.name} (${pageId})`);
+    const data = fs.readFileSync(KEYWORDS_FILE, 'utf8');
+    return JSON.parse(data);
   } catch (err) {
-    console.error(`❌ Subscription failed:`, err.response?.data || err.message);
+    console.error("Error loading keywords:", err);
+    return {};
   }
-  console.log("📌 Mapped pages:", Object.keys(pageTokenMap));
 };
 
+const saveKeywords = (data) => {
+  fs.writeFileSync(KEYWORDS_FILE, JSON.stringify(data, null, 2));
+};
+
+const initializePageData = async () => {
+  const keywordsData = loadKeywords();
+  
+  for (const token of PAGE_TOKENS) {
+    try {
+      const res = await axios.get('https://graph.facebook.com/v18.0/me', {
+        params: { access_token: token, fields: 'id,name' }
+      });
+      
+      const pageId = res.data.id;
+      pageTokenMap[pageId] = token;
+      
+      // Initialize page settings
+      if (!pageKeywordsMap[pageId]) {
+        pageKeywordsMap[pageId] = keywordsData[pageId] || {};
+      }
+      
+      if (!pageReplySettings[pageId]) {
+        pageReplySettings[pageId] = {
+          publicReply: "Merci pour votre commentaire!",
+          privateReply: "Merci pour votre commentaire! Comment puis-je vous aider?",
+          activeKeywords: {}
+        };
+      }
+      
+      // Subscribe to webhooks
+      await axios.post(`https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`, {
+        subscribed_fields: ['feed', 'messages', 'messaging_postbacks', 'messaging_optins']
+      }, { params: { access_token: token } });
+      
+      console.log(`✅ Initialized page ${res.data.name} (${pageId})`);
+    } catch (err) {
+      console.error(`❌ Initialization failed for token:`, err.response?.data || err.message);
+    }
+  }
+  
+  console.log("📌 Active pages:", Object.keys(pageTokenMap));
+};
+
+// Messenger functions
 const sendTyping = async (id, tk) => {
   await axios.post('https://graph.facebook.com/v11.0/me/messages', {
     recipient: { id },
@@ -117,12 +161,13 @@ const sendMessage = async (id, msg, tk) => {
   }
 };
 
-const sendPrivateReplyWithMenu = async (commentId, token) => {
+const sendPrivateReplyWithMenu = async (commentId, token, pageId) => {
+  const settings = pageReplySettings[pageId];
   try {
     await axios.post('https://graph.facebook.com/v18.0/me/messages', {
       recipient: { comment_id: commentId },
       message: {
-        text: "✅ Merci pour votre commentaire sur notre publication ! Choisissez une option :",
+        text: settings.privateReply || "✅ Merci pour votre commentaire sur notre publication ! Comment puis-je vous aider ?",
         quick_replies: [
           { content_type: "text", title: "🔤 Traduire", payload: "MODE_TRANSLATE" },
           { content_type: "text", title: "💬 Discuter", payload: "MODE_CHAT" },
@@ -259,7 +304,7 @@ const handleMessengerEvent = async (evt, tk) => {
           quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }]
         }, tk);
       } catch {
-        return sendMessage(id, "❌ Erreur lors de l’analyse de l’image.", tk);
+        return sendMessage(id, "❌ Erreur lors de l'analyse de l'image.", tk);
       }
     } else if (userModes[id] === 'chat') {
       return sendMessage(id, "📸 Belle image ! Voulez-vous en parler ?", tk);
@@ -270,6 +315,46 @@ const handleMessengerEvent = async (evt, tk) => {
 
   if (evt.message?.text) {
     return handleTextMessage(evt, tk);
+  }
+};
+
+const handleCommentEvent = async (change, pageId) => {
+  const token = pageTokenMap[pageId];
+  if (!token) return;
+
+  const message = change.value.message || "";
+  const commenterId = change.value.from?.id;
+  const commentId = change.value.comment_id;
+  const parentId = change.value.parent_id;
+
+  if (parentId) return;
+
+  const keywords = pageKeywordsMap[pageId] || {};
+  const activeKeywords = pageReplySettings[pageId]?.activeKeywords || {};
+  
+  let keywordMatch = null;
+  for (const [keyword, settings] of Object.entries(activeKeywords)) {
+    if (new RegExp(keyword, 'i').test(message)) {
+      keywordMatch = settings;
+      break;
+    }
+  }
+
+  if (keywordMatch) {
+    if (keywordMatch.publicReply) {
+      await sendPublicCommentReply(commentId, keywordMatch.publicReply, token);
+    }
+    if (keywordMatch.privateReply && commenterId) {
+      await sendPrivateReplyWithMenu(commentId, token, pageId);
+    }
+  } else {
+    const settings = pageReplySettings[pageId];
+    if (settings.publicReply) {
+      await sendPublicCommentReply(commentId, settings.publicReply, token);
+    }
+    if (settings.privateReply && commenterId) {
+      await sendPrivateReplyWithMenu(commentId, token, pageId);
+    }
   }
 };
 
@@ -298,16 +383,7 @@ app.post('/webhook', async (req, res) => {
       if (entry.changes) {
         for (const change of entry.changes) {
           if (change.field === 'feed' && change.value.item === 'comment' && change.value.verb === 'add') {
-            const message = change.value.message || "";
-            const commenterId = change.value.from?.id;
-            const commentId = change.value.comment_id;
-            if (/ok/i.test(message)) {
-              await sendPublicCommentReply(commentId, "Mety mbola tsy arakao fa platforme IA izahay, andramo andefasana mesazy ange hijerenao azy e", token);
-              if (commenterId) {
-                await sendMessage(commenterId, "Chat GPT est ici pour vous 🤖", token);
-              }
-              await sendPrivateReplyWithMenu(commentId, token);
-            }
+            await handleCommentEvent(change, pageID);
           }
         }
       }
@@ -323,8 +399,161 @@ app.post('/webhook', async (req, res) => {
   res.sendStatus(404);
 });
 
+const mustacheExpress = require('mustache-express');
+
+app.engine('html', mustacheExpress());
+app.set('view engine', 'html');
+app.set('views', path.join(__dirname, 'public/admin'));
+
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('/admin', async (req, res) => {
+  const accessToken = req.query.access_token;
+  if (!accessToken) {
+    return res.sendFile(path.join(__dirname, 'public/admin/login.html'));
+  }
+
+  let pageId = null;
+  let pageName = "Inconnu";
+  
+  for (const [pid, tk] of Object.entries(pageTokenMap)) {
+    if (tk === accessToken) {
+      pageId = pid;
+      break;
+    }
+  }
+
+  if (!pageId) {
+    return res.status(403).send("Token d'accès invalide");
+  }
+
+  try {
+    const resPage = await axios.get(`https://graph.facebook.com/v18.0/${pageId}`, {
+      params: { access_token: accessToken, fields: 'name' }
+    });
+    pageName = resPage.data.name;
+  } catch (err) {
+    console.error("Error getting page name:", err);
+  }
+
+  const settings = pageReplySettings[pageId] || {};
+  const activeKeywords = settings.activeKeywords || {};
+
+  const keywords = Object.entries(activeKeywords).map(([keyword, settings]) => ({
+    keyword,
+    publicReply: settings.publicReply,
+    privateReply: settings.privateReply
+  }));
+
+  res.render('index', {
+    pageName,
+    pageId,
+    publicReply: settings.publicReply || '',
+    privateReply: settings.privateReply || '',
+    keywords,
+    accessToken,
+    encode: encodeURIComponent
+  });
+});
+
+app.post('/update-settings', async (req, res) => {
+  const accessToken = req.query.access_token;
+  if (!accessToken) return res.status(403).send('Token required');
+
+  let pageId = null;
+  for (const [pid, tk] of Object.entries(pageTokenMap)) {
+    if (tk === accessToken) {
+      pageId = pid;
+      break;
+    }
+  }
+
+  if (!pageId) return res.status(403).send('Invalid token');
+
+  const { publicReply, privateReply } = req.body;
+  
+  if (!pageReplySettings[pageId]) {
+    pageReplySettings[pageId] = {};
+  }
+  
+  pageReplySettings[pageId].publicReply = publicReply;
+  pageReplySettings[pageId].privateReply = privateReply;
+  
+  res.sendStatus(200);
+});
+
+app.post('/add-keyword', async (req, res) => {
+  const accessToken = req.query.access_token;
+  if (!accessToken) return res.status(403).send('Token required');
+
+  let pageId = null;
+  for (const [pid, tk] of Object.entries(pageTokenMap)) {
+    if (tk === accessToken) {
+      pageId = pid;
+      break;
+    }
+  }
+
+  if (!pageId) return res.status(403).send('Invalid token');
+
+  const { keyword, publicReply, privateReply } = req.body;
+  
+  if (!pageReplySettings[pageId]) {
+    pageReplySettings[pageId] = { activeKeywords: {} };
+  }
+  
+  if (!pageReplySettings[pageId].activeKeywords) {
+    pageReplySettings[pageId].activeKeywords = {};
+  }
+  
+  pageReplySettings[pageId].activeKeywords[keyword] = {
+    publicReply,
+    privateReply
+  };
+  
+  // Update keywords file
+  const keywordsData = loadKeywords();
+  if (!keywordsData[pageId]) keywordsData[pageId] = {};
+  keywordsData[pageId][keyword] = { publicReply, privateReply };
+  saveKeywords(keywordsData);
+  
+  res.sendStatus(200);
+});
+
+app.delete('/delete-keyword', async (req, res) => {
+  const accessToken = req.query.access_token;
+  const keyword = req.query.keyword;
+  
+  if (!accessToken || !keyword) return res.status(400).send('Missing parameters');
+
+  let pageId = null;
+  for (const [pid, tk] of Object.entries(pageTokenMap)) {
+    if (tk === accessToken) {
+      pageId = pid;
+      break;
+    }
+  }
+
+  if (!pageId) return res.status(403).send('Invalid token');
+
+  if (pageReplySettings[pageId]?.activeKeywords?.[keyword]) {
+    delete pageReplySettings[pageId].activeKeywords[keyword];
+    
+    // Update keywords file
+    const keywordsData = loadKeywords();
+    if (keywordsData[pageId]?.[keyword]) {
+      delete keywordsData[pageId][keyword];
+      saveKeywords(keywordsData);
+    }
+    
+    res.sendStatus(200);
+  } else {
+    res.status(404).send('Keyword not found');
+  }
+});
+
 (async () => {
-  await subscribePages();
+  await initializePageData();
   app.listen(PORT, () => {
     console.log(`🚀 Server running at http://localhost:${PORT}`);
   });
