@@ -407,53 +407,96 @@ app.set('views', path.join(__dirname, 'public/admin'));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.get('/adm', async (req, res) => {
-  const accessToken = req.query.access_token;
-  if (!accessToken) {
-    return res.sendFile(path.join(__dirname, 'public/admin/login.html'));
-  }
 
-  let pageId = null;
-  let pageName = "Inconnu";
+app.get('/adm', (req, res) => {
+  res.render('login', { 
+    error: null,
+    actionUrl: '/adm/verify' 
+  });
+});
+
+app.post('/adm/verify', express.urlencoded({ extended: true }), async (req, res) => {
+  const { access_token } = req.body;
   
-  for (const [pid, tk] of Object.entries(pageTokenMap)) {
-    if (tk === accessToken) {
-      pageId = pid;
-      break;
-    }
-  }
-
-  if (!pageId) {
-    return res.status(403).send("Token d'accès invalide");
+  if (!access_token) {
+    return res.render('login', {
+      error: 'Token d\'accès requis',
+      actionUrl: '/admin/verify'
+    });
   }
 
   try {
-    const resPage = await axios.get(`https://graph.facebook.com/v18.0/${pageId}`, {
-      params: { access_token: accessToken, fields: 'name' }
+    const pageInfo = await axios.get('https://graph.facebook.com/v18.0/me', {
+      params: {
+        access_token: access_token,
+        fields: 'id,name'
+      },
+      timeout: 5000
     });
-    pageName = resPage.data.name;
-  } catch (err) {
-    console.error("Error getting page name:", err);
+
+    const pageId = pageInfo.data.id;
+
+    if (!pageTokenMap[pageId] || pageTokenMap[pageId] !== access_token) {
+      return res.render('login', {
+        error: 'Token non autorisé pour cette page',
+        actionUrl: '/adm/verify'
+      });
+    }
+
+    req.session.accessToken = access_token;
+    req.session.pageId = pageId;
+
+    res.redirect('/adm/dashboard');
+    
+  } catch (error) {
+    console.error('Token verification failed:', error.message);
+    res.render('login', {
+      error: 'Token invalide ou erreur de connexion',
+      actionUrl: '/adm/verify'
+    });
+  }
+});
+
+app.get('/adm/dashboard', async (req, res) => {
+  // Check session for token
+  if (!req.session?.accessToken) {
+    return res.redirect('/admin');
   }
 
-  const settings = pageReplySettings[pageId] || {};
-  const activeKeywords = settings.activeKeywords || {};
+  try {
+    const { accessToken, pageId } = req.session;
 
-  const keywords = Object.entries(activeKeywords).map(([keyword, settings]) => ({
-    keyword,
-    publicReply: settings.publicReply,
-    privateReply: settings.privateReply
-  }));
+    const pageInfo = await axios.get(`https://graph.facebook.com/v18.0/${pageId}`, {
+      params: {
+        access_token: accessToken,
+        fields: 'name'
+      }
+    });
 
-  res.render('index', {
-    pageName,
-    pageId,
-    publicReply: settings.publicReply || '',
-    privateReply: settings.privateReply || '',
-    keywords,
-    accessToken,
-    encode: encodeURIComponent
-  });
+    const settings = pageReplySettings[pageId] || {
+      publicReply: 'Merci pour votre commentaire!',
+      privateReply: 'Comment puis-je vous aider?'
+    };
+
+    const keywords = Object.entries(pageReplySettings[pageId]?.activeKeywords || {}).map(
+      ([keyword, settings]) => ({
+        keyword,
+        publicReply: settings.publicReply,
+        privateReply: settings.privateReply
+      })
+    );
+
+    res.render('dashboard', {
+      pageName: pageInfo.data.name,
+      pageId,
+      ...settings,
+      keywords
+    });
+
+  } catch (error) {
+    console.error('Dashboard error:', error);
+    res.redirect('/admin');
+  }
 });
 
 app.post('/update-settings', async (req, res) => {
