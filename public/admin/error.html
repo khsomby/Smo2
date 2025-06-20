@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Erreur</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f5f6f8;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    .container {
+      max-width: 600px;
+      margin: 50px auto;
+      background-color: white;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      padding: 30px;
+      text-align: center;
+    }
+    h1 {
+      color: #e74c3c;
+      margin-bottom: 20px;
+    }
+    .error-message {
+      background-color: #ffebee;
+      color: #c62828;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 30px;
+      border-left: 4px solid #c62828;
+    }
+    .error-details {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 30px;
+      text-align: left;
+      overflow-x: auto;
+    }
+    .back-button {
+      display: inline-block;
+      padding: 10px 20px;
+      background-color: #4267B2;
+      color: white;
+      text-decoration: none;
+      border-radius: 4px;
+    }
+    .back-button:hover {
+      background-color: #365899;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Erreur du Serveur</h1>
+    
+    <div class="error-message">
+      {{message}}
+    </div>
+    
+    {{#error}}
+      <div class="error-details">
+        <pre>{{error}}</pre>
+      </div>
+    {{/error}}
+    
+    <a href="/adm" class="back-button">Retour à la page de connexion</a>
+  </div>
+</body>
+</html>
