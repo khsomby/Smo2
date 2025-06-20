@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - {{pageName}}</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f5f6f8;
+      margin: 0;
+      padding: 0;
+      color: #333;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background-color: white;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      padding: 30px;
+      position: relative;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #eee;
+    }
+    h1 {
+      color: #4267B2;
+      margin: 0;
+    }
+    .logout-btn {
+      background-color: #e74c3c;
+      color: white;
+      text-decoration: none;
+      padding: 8px 15px;
+      border-radius: 4px;
+      font-size: 14px;
+      transition: background-color 0.3s;
+    }
+    .logout-btn:hover {
+      background-color: #c0392b;
+    }
+    .page-info {
+      background-color: #f0f2f5;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+    .tabs {
+      display: flex;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #ddd;
+    }
+    .tab {
+      padding: 10px 20px;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+    }
+    .tab.active {
+      border-bottom: 3px solid #4267B2;
+      font-weight: bold;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+    button {
+      background-color: #4267B2;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #365899;
+    }
+    .keyword-list {
+      margin-top: 20px;
+    }
+    .keyword-item {
+      background-color: #f0f2f5;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 15px;
+    }
+    .keyword-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .keyword-text {
+      font-weight: bold;
+      color: #4267B2;
+    }
+    .delete-btn {
+      background-color: #e74c3c;
+      padding: 5px 10px;
+      font-size: 14px;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .delete-btn:hover {
+      background-color: #c0392b;
+    }
+    .success-message {
+      background-color: #2ecc71;
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Gestion de la Page: {{pageName}}</h1>
+      <a href="/admin/logout" class="logout-btn">Déconnexion</a>
+    </header>
+
+    <div class="page-info">
+      <p><strong>ID Page:</strong> {{pageId}}</p>
+    </div>
+
+    <div id="success-message" class="success-message"></div>
+
+    <div class="tabs">
+      <div class="tab active" onclick="showTab('settings')">Paramètres Généraux</div>
+      <div class="tab" onclick="showTab('keywords')">Mots-clés Personnalisés</div>
+    </div>
+
+    <div id="settings" class="tab-content active">
+      <h2>Réponses par Défaut</h2>
+      <form id="general-settings" onsubmit="saveSettings(event)">
+        <div class="form-group">
+          <label for="public-reply">Réponse Publique (commentaire principal)</label>
+          <textarea id="public-reply" name="public-reply" required>{{publicReply}}</textarea>
+        </div>
+        
+        <div class="form-group">
+          <label for="private-reply">Réponse Privée (message direct)</label>
+          <textarea id="private-reply" name="private-reply" required>{{privateReply}}</textarea>
+        </div>
+        
+        <button type="submit">Enregistrer les Paramètres</button>
+      </form>
+    </div>
+
+    <div id="keywords" class="tab-content">
+      <h2>Mots-clés Personnalisés</h2>
+      
+      <form id="add-keyword" onsubmit="addKeyword(event)">
+        <div class="form-group">
+          <label for="keyword-text">Mot-clé (expression régulière)</label>
+          <input type="text" id="keyword-text" name="keyword-text" placeholder="ex: bonjour|salut" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="keyword-public-reply">Réponse Publique</label>
+          <textarea id="keyword-public-reply" name="keyword-public-reply" required></textarea>
+        </div>
+        
+        <div class="form-group">
+          <label for="keyword-private-reply">Réponse Privée</label>
+          <textarea id="keyword-private-reply" name="keyword-private-reply" required></textarea>
+        </div>
+        
+        <button type="submit">Ajouter le Mot-clé</button>
+      </form>
+      
+      <div class="keyword-list" id="keyword-list">
+        {{#each keywords}}
+        <div class="keyword-item" id="keyword-{{encode this.keyword}}">
+          <div class="keyword-header">
+            <span class="keyword-text">{{this.keyword}}</span>
+            <button class="delete-btn" onclick="deleteKeyword('{{encode this.keyword}}')">Supprimer</button>
+          </div>
+          <p><strong>Réponse Publique:</strong> {{this.publicReply}}</p>
+          <p><strong>Réponse Privée:</strong> {{this.privateReply}}</p>
+        </div>
+        {{/each}}
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function showTab(tabId) {
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+      });
+      
+      document.querySelector(`.tab[onclick="showTab('${tabId}')"]`).classList.add('active');
+      document.getElementById(tabId).classList.add('active');
+    }
+
+    function showSuccess(message) {
+      const el = document.getElementById('success-message');
+      el.textContent = message;
+      el.style.display = 'block';
+      setTimeout(() => {
+        el.style.display = 'none';
+      }, 3000);
+    }
+
+    async function saveSettings(e) {
+      e.preventDefault();
+      const form = e.target;
+      const data = {
+        publicReply: form.elements['public-reply'].value,
+        privateReply: form.elements['private-reply'].value
+      };
+      
+      try {
+        const response = await fetch('/update-settings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+          showSuccess('Paramètres enregistrés avec succès!');
+        } else {
+          alert('Erreur lors de la sauvegarde');
+        }
+      } catch (error) {
+        alert('Erreur réseau');
+      }
+    }
+
+    async function addKeyword(e) {
+      e.preventDefault();
+      const form = e.target;
+      const data = {
+        keyword: form.elements['keyword-text'].value,
+        publicReply: form.elements['keyword-public-reply'].value,
+        privateReply: form.elements['keyword-private-reply'].value
+      };
+      
+      try {
+        const response = await fetch('/add-keyword', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+          const keywordList = document.getElementById('keyword-list');
+          const keywordItem = document.createElement('div');
+          keywordItem.className = 'keyword-item';
+          keywordItem.id = 'keyword-' + encodeURIComponent(data.keyword);
+          keywordItem.innerHTML = `
+            <div class="keyword-header">
+              <span class="keyword-text">${data.keyword}</span>
+              <button class="delete-btn" onclick="deleteKeyword('${encodeURIComponent(data.keyword)}')">Supprimer</button>
+            </div>
+            <p><strong>Réponse Publique:</strong> ${data.publicReply}</p>
+            <p><strong>Réponse Privée:</strong> ${data.privateReply}</p>
+          `;
+          keywordList.prepend(keywordItem);
+
+          form.reset();
+          showSuccess('Mot-clé ajouté avec succès!');
+        } else {
+          alert('Erreur lors de l\'ajout');
+        }
+      } catch (error) {
+        alert('Erreur réseau');
+      }
+    }
+
+    async function deleteKeyword(keyword) {
+      if (!confirm('Êtes-vous sûr de vouloir supprimer ce mot-clé ?')) return;
+      
+      try {
+        const response = await fetch('/delete-keyword?keyword=' + keyword, {
+          method: 'DELETE'
+        });
+        
+        if (response.ok) {
+          document.getElementById('keyword-' + keyword).remove();
+          showSuccess('Mot-clé supprimé avec succès!');
+        } else {
+          alert('Erreur lors de la suppression');
+        }
+      } catch (error) {
+        alert('Erreur réseau');
+      }
+    }
+
+    function encode(str) {
+      return encodeURIComponent(str);
+    }
+  </script>
+</body>
+</html>
