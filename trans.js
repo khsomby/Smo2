@@ -419,7 +419,7 @@ app.post('/webhook', async (req, res) => {
 
 app.get('/adm/logout', (req, res) => {
   req.session.destroy();
-  res.redirect('/admin');
+  res.redirect('/adm');
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -438,7 +438,7 @@ app.post('/adm/verify', express.urlencoded({ extended: true }), async (req, res)
   if (!access_token) {
     return res.render('login', {
       error: 'Token d\'accès requis',
-      actionUrl: '/admin/verify'
+      actionUrl: '/adm/verify'
     });
   }
 
@@ -477,7 +477,7 @@ app.post('/adm/verify', express.urlencoded({ extended: true }), async (req, res)
 app.get('/adm/dashboard', async (req, res) => {
   // Check session for token
   if (!req.session?.accessToken) {
-    return res.redirect('/admin');
+    return res.redirect('/adm');
   }
 
   try {
@@ -512,7 +512,7 @@ app.get('/adm/dashboard', async (req, res) => {
 
   } catch (error) {
     console.error('Dashboard error:', error);
-    res.redirect('/admin');
+    res.redirect('/adm');
   }
 });
 
