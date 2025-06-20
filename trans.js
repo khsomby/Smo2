@@ -405,6 +405,23 @@ app.engine('html', mustacheExpress());
 app.set('view engine', 'html');
 app.set('views', path.join(__dirname, 'public/admin'));
 
+const session = require('express-session');
+
+app.use(session({
+  secret: 'your-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { 
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 3600000
+  }
+}));
+
+app.get('/adm/logout', (req, res) => {
+  req.session.destroy();
+  res.redirect('/admin');
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 
