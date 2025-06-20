@@ -407,7 +407,7 @@ app.set('views', path.join(__dirname, 'public/admin'));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.get('/admin/', async (req, res) => {
+app.get('/adm', async (req, res) => {
   const accessToken = req.query.access_token;
   if (!accessToken) {
     return res.sendFile(path.join(__dirname, 'public/admin/login.html'));
