@@ -399,23 +399,23 @@ app.post('/webhook', async (req, res) => {
   res.sendStatus(404);
 });
 
-const mustacheExpress = require('mustache-express');
+   const session = require('express-session');
+   const mustacheExpress = require('mustache-express');
 
-app.engine('html', mustacheExpress());
-app.set('view engine', 'html');
-app.set('views', path.join(__dirname, 'public/admin'));
+   app.use(session({
+     secret: 'your-secret-key-here',
+     resave: false,
+     saveUninitialized: false,
+     cookie: { secure: process.env.NODE_ENV === 'production' }
+   }));
 
-const session = require('express-session');
+   app.engine('html', mustacheExpress());
+   app.set('view engine', 'html');
+   app.set('views', path.join(__dirname, 'public/admin'));
 
-app.use(session({
-  secret: 'your-secret-key',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { 
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 3600000
-  }
-}));
+   app.use(express.static(path.join(__dirname, 'public')));
+   app.use(express.urlencoded({ extended: true }));
+   app.use(express.json());
 
 app.get('/adm/logout', (req, res) => {
   req.session.destroy();
