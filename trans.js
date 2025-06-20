@@ -178,22 +178,6 @@ const translateText = async (txt, lang) => {
   }
 };
 
-// Language selection
-const LANGUAGES = [
-  { code: 'en', name: '🇬🇧 English' },
-  { code: 'fr', name: '🇫🇷 Français' },
-  { code: 'es', name: '🇪🇸 Español' },
-  { code: 'de', name: '🇩🇪 Deutsch' },
-  { code: 'it', name: '🇮🇹 Italiano' },
-  { code: 'pt', name: '🇵🇹 Português' },
-  { code: 'ru', name: '🇷🇺 Русский' },
-  { code: 'zh', name: '🇨🇳 中文' },
-  { code: 'ja', name: '🇯🇵 日本語' },
-  { code: 'ar', name: '🇸🇦 العربية' },
-  { code: 'hi', name: '🇮🇳 हिन्दी' },
-  { code: 'ko', name: '🇰🇷 한국어' },
-  { code: 'mg', name: '🇲🇬 Malagasy' }
-];
 
 const askForLanguage = (id, orig, tk, page = 0) => {
   languagePaginationMap[id] = { orig, page };
