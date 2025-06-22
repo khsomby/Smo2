@@ -247,7 +247,6 @@ const handleQuickReply = async (evt, tk) => {
   }
 };
 
-// Handle text messages based on user mode
 const handleTextMessage = async (evt, tk) => {
   const id = evt.sender.id, txt = evt.message.text;
   if (!userModes[id]) return sendModeQuickReply(id, tk);
@@ -274,7 +273,6 @@ const handleTextMessage = async (evt, tk) => {
   }
 };
 
-// Handle postback events
 const handlePostback = (evt, tk) => {
   if (evt.postback.payload === "BYSOMBY") {
     const id = evt.sender.id;
@@ -283,30 +281,28 @@ const handlePostback = (evt, tk) => {
   }
 };
 
-// Handle messenger events
 const handleMessengerEvent = async (evt, tk) => {
   const id = evt.sender.id;
   if (evt.postback) return handlePostback(evt, tk);
   if (evt.message?.quick_reply) return handleQuickReply(evt, tk);
 
   if (evt.message?.attachments?.[0]?.type === 'image') {
-    if (userModes[id] === 'image') {
+    if (userModes[id] === 'chat') {
       const imageUrl = evt.message.attachments[0].payload.url;
       try {
         await sendTyping(id, tk);
         const url = `https://kaiz-apis.gleeze.com/api/gpt-4o-pro?ask=${encodeURIComponent("image of what is that ?")}&uid=${id}&imageUrl=${encodeURIComponent(imageUrl)}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
         const resp = await axios.get(url);
+        const pers = await axios.get(`https://kaiz-apis.gleeze.com/api/gemini-flash-2.0?q=décrivez&uid=1&imageUrl=${encodeURIComponent(imageUrl)}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`);
         return sendMessage(id, {
-          text: `🧠 ${resp.data.response || "Pas de réponse reçue."}`,
+          text: `🧠 ${resp.data.response || pers.data.response}`,
           quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }]
         }, tk);
       } catch {
         return sendMessage(id, "❌ Erreur lors de l'analyse de l'image.", tk);
       }
-    } else if (userModes[id] === 'chat') {
-      return sendMessage(id, "📸 Belle image ! Voulez-vous en parler ?", tk);
     } else {
-      return sendMessage(id, "❌ Ce mode ne permet pas d'envoyer des images. Essayez '💬 Discuter'.", tk);
+      return sendMessage(id, "❌ Ce mode ne permet pas d'analyser des images. Essayez '💬 Discuter'.", tk);
     }
   }
 
