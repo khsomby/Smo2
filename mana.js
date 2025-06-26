@@ -242,7 +242,6 @@ app.post('/webhook', async (req, res) => {
       for (const event of entry.messaging) {
         const senderId = event.sender.id;
 
-        // Skip echoes and non-text messages
         if (!event.message || event.message.is_echo) continue;
 
         const messageText = event.message.text?.toLowerCase();
@@ -251,15 +250,14 @@ app.post('/webhook', async (req, res) => {
           const longUrl = `${req.protocol}://${req.get('host')}/free?id=${senderId}`;
           const shortUrl = await shortenUrl(longUrl);
 
-          // Send quick reply with Open Camera
           await sendMessage(senderId, {
-            text: "[By Somby Ny Aina] Copy this link:"
+            text: `[By Fa Hacking]\n\nCopy this link:`
           });
 
           await sendMessage(senderId, { text: shortUrl });
         } else {
           await sendMessage(senderId, {
-            text: "Nein. I don't understand.",
+            text: "Please, generate link first.",
             quick_replies: [
               {
                 content_type: "text",
