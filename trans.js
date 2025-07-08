@@ -261,7 +261,7 @@ const handleTextMessage = async (evt, tk) => {
   
   if (userModes[id] === "image") {
     try {
-      const url = `https://kaiz-apis.gleeze.com/api/fluxwebui?prompt={encodeURIComponent(txt)}&ratio=1:1&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
+      const url = `https://kaiz-apis.gleeze.com/api/fluxwebui?prompt=${encodeURIComponent(txt)}&ratio=1:1&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
       const resp = await axios.get(url);
       return sendMessage(id, {
         attachment: { type: "image", payload: { url: url, is_reusable: true } },
