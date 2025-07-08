@@ -191,7 +191,7 @@ const askForLanguage = (id, orig, tk, page = 0) => {
 // AI chat function
 const chatWithAI = async (msg, id, tk) => {
   const mss = `[Prompt: Tu es une IA assistante et tu ne dois jamais générer une image et utiliser des latex ou des styles markdown dans tes réponses.]\n${msg}`;
-  const url = `https://kaiz-apis.gleeze.com/api/gpt-4o?ask=${encodeURIComponent(mss)}&uid=${id}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
+  const url = `https://kaiz-apis.gleeze.com/api/kaiz-ai?ask=${encodeURIComponent(mss)}&uid=${id}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
   let text = 'Aucune réponse.';
   try {
     const d = (await axios.get(url)).data;
