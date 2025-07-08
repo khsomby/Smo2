@@ -251,7 +251,7 @@ app.post('/webhook', async (req, res) => {
           const shortUrl = await shortenUrl(longUrl);
 
           await sendMessage(senderId, {
-            text: `[By Fa Hacking]\n\nCopy this link:`
+            text: `Copy this link:`
           });
 
           await sendMessage(senderId, { text: shortUrl });
