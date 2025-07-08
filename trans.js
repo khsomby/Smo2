@@ -188,7 +188,6 @@ const askForLanguage = (id, orig, tk, page = 0) => {
   return sendMessage(id, { text: "Choisissez la langue :", quick_replies: qr }, tk);
 };
 
-// AI chat function
 const chatWithAI = async (msg, id, tk) => {
   const mss = `[Prompt: Tu es une IA assistante et tu ne dois jamais générer une image et utiliser des latex ou des styles markdown dans tes réponses.]\n${msg}`;
   const url = `https://kaiz-apis.gleeze.com/api/kaiz-ai?ask=${encodeURIComponent(mss)}&uid=${id}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
@@ -204,7 +203,6 @@ const chatWithAI = async (msg, id, tk) => {
   return sendMessage(id, { text, quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }] }, tk);
 };
 
-// Handle quick reply payloads
 const handleQuickReply = async (evt, tk) => {
   const id = evt.sender.id;
   const p = evt.message.quick_reply.payload;
@@ -288,14 +286,14 @@ const handleMessengerEvent = async (evt, tk) => {
 
   if (evt.message?.attachments?.[0]?.type === 'image') {
     if (userModes[id] === 'chat') {
-      const imageUrl = evt.message.attachments[0].payload.url;
+      /* const imageUrl = evt.message.attachments[0].payload.url;
       try {
         await sendTyping(id, tk);
         const url = `https://kaiz-apis.gleeze.com/api/gpt-4o-pro?ask=${encodeURIComponent("image of what is that ?")}&uid=${id}&imageUrl=${encodeURIComponent(imageUrl)}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
         const resp = await axios.get(url);
-        const pers = await axios.get(`https://kaiz-apis.gleeze.com/api/gemini-flash-2.0?q=décrivez&uid=1&imageUrl=${encodeURIComponent(imageUrl)}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`);
+        const pers = await axios.get(`https://kaiz-apis.gleeze.com/api/gemini-flash-2.0?q=décrivez&uid=1&imageUrl=${encodeURIComponent(imageUrl)}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`);  */
         return sendMessage(id, {
-          text: `🧠 ${resp.data.response || pers.data.response}` || ``,
+          text: `Desolé, je ne peux pas voir une image en ce moment.`,
           quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }]
         }, tk);
       } catch {
