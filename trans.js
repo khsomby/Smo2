@@ -296,9 +296,9 @@ const handleMessengerEvent = async (evt, tk) => {
           text: `Desolé, je ne peux pas voir une image en ce moment.`,
           quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }]
         }, tk);
-      } catch {
+     /* } catch {
         return sendMessage(id, "❌ Erreur lors de l'analyse de l'image.", tk);
-      }
+      } */
     } else {
       return sendMessage(id, "❌ Ce mode ne permet pas d'analyser des images. Essayez '💬 Discuter'.", tk);
     }
