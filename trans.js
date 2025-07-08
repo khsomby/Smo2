@@ -261,10 +261,10 @@ const handleTextMessage = async (evt, tk) => {
   
   if (userModes[id] === "image") {
     try {
-      const url = `https://kaiz-apis.gleeze.com/api/chatbotru-gen?prompt=${encodeURIComponent(txt)}&model=realistic&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
+      const url = `https://kaiz-apis.gleeze.com/api/fluxwebui?prompt={encodeURIComponent(txt)}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
       const resp = await axios.get(url);
       return sendMessage(id, {
-        attachment: { type: "image", payload: { url: resp.data.url, is_reusable: true } },
+        attachment: { type: "image", payload: { url: url, is_reusable: true } },
         quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }]
       }, tk);
     } catch {
@@ -295,7 +295,7 @@ const handleMessengerEvent = async (evt, tk) => {
         const resp = await axios.get(url);
         const pers = await axios.get(`https://kaiz-apis.gleeze.com/api/gemini-flash-2.0?q=décrivez&uid=1&imageUrl=${encodeURIComponent(imageUrl)}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`);
         return sendMessage(id, {
-          text: `🧠 ${resp.data.response || pers.data.response}`,
+          text: `🧠 ${resp.data.response || pers.data.response}` || ``,
           quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }]
         }, tk);
       } catch {
