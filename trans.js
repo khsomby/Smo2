@@ -136,7 +136,7 @@ const askForLanguage = (id, orig, tk, page = 0) => {
   awaitingLang[id] = true;
   languagePaginationMap[id] = { orig, page };
   const pag = LANGUAGES.slice(page * 8, page * 8 + 8);
-  const qr = pag.map(l => ({ content_type: "text", title: l.name, payload: `LANG_${page}_${l.code}` }));
+  const qr = pag.map(l => ({ content_type: "text", title: l.name, payload: `LANG_${l.code}` })); // Removed page number from payload
   if ((page + 1) * 8 < LANGUAGES.length) qr.push({ content_type: "text", title: "➡️", payload: "LANG_NEXT" });
   qr.push({ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" });
   return sendMessage(id, { text: "Choisissez la langue :", quick_replies: qr }, tk);
@@ -187,13 +187,17 @@ const handleQuickReply = async (evt, tk) => {
     return askForLanguage(id, s.orig, tk, s.page + 1);
   }
 
-  const m = p.match(/^LANG_(\d+)_(.+)$/);
-  if (m && awaitingLang[id]) {
+  if (p.startsWith("LANG_") && awaitingLang[id]) {
+    const langCode = p.replace("LANG_", "");
     const s = languagePaginationMap[id];
-    if (!s) return sendMessage(id, "⚠️ périmé", tk);  // Removed the page number check
-    const tr = await translateText(s.orig, m[2]);
+    if (!s) return sendMessage(id, "⚠️ périmé", tk);
+    const tr = await translateText(s.orig, langCode);
     delete awaitingLang[id];
-    return sendMessage(id, { text: tr, quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }] }, tk);
+    delete languagePaginationMap[id];
+    return sendMessage(id, { 
+      text: tr, 
+      quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }] 
+    }, tk);
   }
 };
 
