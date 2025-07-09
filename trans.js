@@ -144,7 +144,7 @@ const askForLanguage = (id, orig, tk, page = 0) => {
 
 const chatWithAI = async (msg, id, tk) => {
   const mss = `[Prompt: Tu es une IA assistante.]\n${msg}`;
-  const url = `https://kaiz-apis.gleeze.com/api/kaiz-ai?ask=${encodeURIComponent(mss)}&uid=${id}&apikey=demo`;
+  const url = `https://kaiz-apis.gleeze.com/api/kaiz-ai?ask=${encodeURIComponent(mss)}&uid=${id}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
   try {
     const d = (await axios.get(url)).data;
     return sendMessage(id, { text: d.response || "Aucune réponse.", quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }] }, tk);
@@ -216,7 +216,7 @@ const handleTextMessage = async (evt, tk) => {
 
   if (userModes[id] === "image") {
     try {
-      const url = `https://kaiz-apis.gleeze.com/api/fluxwebui?prompt=${encodeURIComponent(txt)}&ratio=1:1&apikey=demo`;
+      const url = `https://kaiz-apis.gleeze.com/api/fluxwebui?prompt=${encodeURIComponent(txt)}&ratio=1:1&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
       return sendMessage(id, {
         attachment: { type: "image", payload: { url, is_reusable: true } },
         quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }]
