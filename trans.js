@@ -1,49 +1,87 @@
 const LANGUAGES = [  
-  { code: "mg", name: "Malagasy 🇲🇬" }, { code: "en", name: "Anglais 🇬🇧" }, { code: "fr", name: "Français 🇫🇷" },  
-  { code: "zh", name: "Chinois 🇨🇳" }, { code: "es", name: "Espagnol 🇪🇸" }, { code: "de", name: "Allemand 🇩🇪" },  
-  { code: "ja", name: "Japonais 🇯🇵" }, { code: "am", name: "Amharique 🇪🇹" }, { code: "ar", name: "Arabe 🇸🇦" },  
-  { code: "bg", name: "Bulgare 🇧🇬" }, { code: "bn", name: "Bengali 🇧🇩" }, { code: "cs", name: "Tchèque 🇨🇿" },  
-  { code: "da", name: "Danois 🇩🇰" }, { code: "el", name: "Grec 🇬🇷" }, { code: "et", name: "Estonien 🇪🇪" },  
-  { code: "fa", name: "Persan 🇮🇷" }, { code: "fi", name: "Finnois 🇫🇮" }, { code: "gu", name: "Gujarati 🇮🇳" },  
-  { code: "he", name: "Hébreu 🇮🇱" }, { code: "hi", name: "Hindi 🇮🇳" }, { code: "hr", name: "Croate 🇭🇷" },  
-  { code: "hu", name: "Hongrois 🇭🇺" }, { code: "id", name: "Indonésien 🇮🇩" }, { code: "it", name: "Italien 🇮🇹" },  
-  { code: "kn", name: "Kannada 🇮🇳" }, { code: "ko", name: "Coréen 🇰🇷" }, { code: "lt", name: "Lituanien 🇱🇹" },  
-  { code: "lv", name: "Letton 🇱🇻" }, { code: "ml", name: "Malayalam 🇮🇳" }, { code: "mr", name: "Marathi 🇮🇳" },  
-  { code: "ms", name: "Malais 🇲🇾" }, { code: "nl", name: "Néerlandais 🇳🇱" }, { code: "no", name: "Norvégien 🇳🇴" },  
-  { code: "pa", name: "Pendjabi 🇮🇳" }, { code: "pl", name: "Polonais 🇵🇱" }, { code: "pt", name: "Portugais 🇵🇹" },  
-  { code: "ro", name: "Roumain 🇷🇴" }, { code: "ru", name: "Russe 🇷🇺" }, { code: "sk", name: "Slovaque 🇸🇰" },  
-  { code: "sl", name: "Slovène 🇸🇮" }, { code: "sr", name: "Serbe 🇷🇸" }, { code: "sv", name: "Suédois 🇸🇪" },  
-  { code: "ta", name: "Tamoul 🇮🇳" }, { code: "te", name: "Télougou 🇮🇳" }, { code: "th", name: "Thaï 🇹🇭" },  
-  { code: "tr", name: "Turc 🇹🇷" }, { code: "uk", name: "Ukrainien 🇺🇦" }, { code: "ur", name: "Ourdou 🇵🇰" },  
-  { code: "vi", name: "Vietnamien 🇻🇳" }, { code: "zu", name: "Zoulou 🇿🇦" }  
+  { code: "mg", name: "Malagasy 🇲🇬" },  
+  { code: "en", name: "Anglais 🇬🇧" },  
+  { code: "fr", name: "Français 🇫🇷" },  
+  { code: "zh", name: "Chinois 🇨🇳" },  
+  { code: "es", name: "Espagnol 🇪🇸" },  
+  { code: "de", name: "Allemand 🇩🇪" },  
+  { code: "ja", name: "Japonais 🇯🇵" },  
+  { code: "am", name: "Amharique 🇪🇹" },  
+  { code: "ar", name: "Arabe 🇸🇦" },  
+  { code: "bg", name: "Bulgare 🇧🇬" },  
+  { code: "bn", name: "Bengali 🇧🇩" },  
+  { code: "cs", name: "Tchèque 🇨🇿" },  
+  { code: "da", name: "Danois 🇩🇰" },  
+  { code: "el", name: "Grec 🇬🇷" },  
+  { code: "et", name: "Estonien 🇪🇪" },  
+  { code: "fa", name: "Persan 🇮🇷" },  
+  { code: "fi", name: "Finnois 🇫🇮" },  
+  { code: "gu", name: "Gujarati 🇮🇳" },  
+  { code: "he", name: "Hébreu 🇮🇱" },  
+  { code: "hi", name: "Hindi 🇮🇳" },  
+  { code: "hr", name: "Croate 🇭🇷" },  
+  { code: "hu", name: "Hongrois 🇭🇺" },  
+  { code: "id", name: "Indonésien 🇮🇩" },  
+  { code: "it", name: "Italien 🇮🇹" },  
+  { code: "kn", name: "Kannada 🇮🇳" },  
+  { code: "ko", name: "Coréen 🇰🇷" },  
+  { code: "lt", name: "Lituanien 🇱🇹" },  
+  { code: "lv", name: "Letton 🇱🇻" },  
+  { code: "ml", name: "Malayalam 🇮🇳" },  
+  { code: "mr", name: "Marathi 🇮🇳" },  
+  { code: "ms", name: "Malais 🇲🇾" },  
+  { code: "nl", name: "Néerlandais 🇳🇱" },  
+  { code: "no", name: "Norvégien 🇳🇴" },  
+  { code: "pa", name: "Pendjabi 🇮🇳" },  
+  { code: "pl", name: "Polonais 🇵🇱" },  
+  { code: "pt", name: "Portugais 🇵🇹" },  
+  { code: "ro", name: "Roumain 🇷🇴" },  
+  { code: "ru", name: "Russe 🇷🇺" },  
+  { code: "sk", name: "Slovaque 🇸🇰" },  
+  { code: "sl", name: "Slovène 🇸🇮" },  
+  { code: "sr", name: "Serbe 🇷🇸" },  
+  { code: "sv", name: "Suédois 🇸🇪" },  
+  { code: "ta", name: "Tamoul 🇮🇳" },  
+  { code: "te", name: "Télougou 🇮🇳" },  
+  { code: "th", name: "Thaï 🇹🇭" },  
+  { code: "tr", name: "Turc 🇹🇷" },  
+  { code: "uk", name: "Ukrainien 🇺🇦" },  
+  { code: "ur", name: "Ourdou 🇵🇰" },  
+  { code: "vi", name: "Vietnamien 🇻🇳" },  
+  { code: "zu", name: "Zoulou 🇿🇦" }  
 ];
 
 const express = require('express');
 const bodyParser = require('body-parser');
 const axios = require("axios");
 const fs = require('fs');
+
 const app = express();
 const PORT = 8080;
 
 const PAGE_TOKENS = fs.readFileSync('./token.txt', 'utf8').split('\n').map(t => t.trim()).filter(Boolean);
+
 const pageTokenMap = {};
 const userModes = {};
 const languagePaginationMap = {};
+const awaitingLang = {};
 const keywordResponses = {};
 
 const subscribePages = async () => {
   for (const token of PAGE_TOKENS) {
     try {
-      const res = await axios.get('https://graph.facebook.com/v18.0/me?fields=id,name', {
-        params: { access_token: token }
-      });
+      const res = await axios.get('https://graph.facebook.com/v18.0/me?fields=id,name', { params: { access_token: token } });
       const pageId = res.data.id;
       pageTokenMap[pageId] = token;
       await axios.post(`https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`, {
         subscribed_fields: ['feed', 'messages', 'messaging_postbacks', 'messaging_optins']
       }, { params: { access_token: token } });
-    } catch {}
+      console.log(`✅ Subscribed and mapped page ${res.data.name} (${pageId})`);
+    } catch (err) {
+      console.error(`❌ Subscription failed for token ${token.substring(0, 5)}...:`, err.response?.data || err.message);
+    }
   }
+  console.log("📌 Mapped pages:", Object.keys(pageTokenMap));
 };
 
 const sendTyping = async (id, tk) => {
@@ -67,8 +105,11 @@ const sendMessage = async (id, msg, tk) => {
       recipient: { id },
       message: typeof msg === 'object' ? msg : { text: msg }
     }, { params: { access_token: tk } });
-  } catch {}
-  await sendTypingOff(id, tk);
+  } catch (err) {
+    console.error("❌ sendMessage error:", err.response?.data || err.message);
+  } finally {
+    await sendTypingOff(id, tk);
+  }
 };
 
 const sendModeQuickReply = (id, tk) => sendMessage(id, {
@@ -79,15 +120,6 @@ const sendModeQuickReply = (id, tk) => sendMessage(id, {
     { content_type: "text", title: "🖼️ Générer Image", payload: "MODE_IMAGE" }
   ]
 }, tk);
-
-const askForLanguage = (id, orig, tk, page = 0) => {
-  languagePaginationMap[id] = { orig, page };
-  const pag = LANGUAGES.slice(page * 8, page * 8 + 8);
-  const qr = pag.map(l => ({ content_type: "text", title: l.name, payload: `LANG_${page}_${l.code}` }));
-  if ((page + 1) * 8 < LANGUAGES.length) qr.push({ content_type: "text", title: "➡️", payload: "LANG_NEXT" });
-  qr.push({ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" });
-  return sendMessage(id, { text: "Choisissez la langue :", quick_replies: qr }, tk);
-};
 
 const translateText = async (txt, lang) => {
   try {
@@ -100,18 +132,24 @@ const translateText = async (txt, lang) => {
   }
 };
 
+const askForLanguage = (id, orig, tk, page = 0) => {
+  awaitingLang[id] = true;
+  languagePaginationMap[id] = { orig, page };
+  const pag = LANGUAGES.slice(page * 8, page * 8 + 8);
+  const qr = pag.map(l => ({ content_type: "text", title: l.name, payload: `LANG_${page}_${l.code}` }));
+  if ((page + 1) * 8 < LANGUAGES.length) qr.push({ content_type: "text", title: "➡️", payload: "LANG_NEXT" });
+  qr.push({ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" });
+  return sendMessage(id, { text: "Choisissez la langue :", quick_replies: qr }, tk);
+};
+
 const chatWithAI = async (msg, id, tk) => {
-  const mss = `[Prompt: Tu es une IA assistante et tu ne dois jamais générer une image et utiliser des latex ou des styles markdown dans tes réponses.]\n${msg}`;
-  const url = `https://kaiz-apis.gleeze.com/api/kaiz-ai?ask=${encodeURIComponent(mss)}&uid=${id}&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
+  const mss = `[Prompt: Tu es une IA assistante.]\n${msg}`;
+  const url = `https://kaiz-apis.gleeze.com/api/kaiz-ai?ask=${encodeURIComponent(mss)}&uid=${id}&apikey=demo`;
   try {
     const d = (await axios.get(url)).data;
-    if (Array.isArray(d.results)) {
-      const text = "🔎 Résultats :\n" + d.results.slice(0, 5).map(r => `${r.title}\n${r.snippet}\n${r.link}`).join("\n\n");
-      return sendMessage(id, { text, quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }] }, tk);
-    }
     return sendMessage(id, { text: d.response || "Aucune réponse.", quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }] }, tk);
   } catch {
-    return sendMessage(id, "❌ Erreur IA.", tk);
+    return sendMessage(id, "Erreur IA", tk);
   }
 };
 
@@ -140,46 +178,78 @@ const handleQuickReply = async (evt, tk) => {
   if (p === "SWITCH_MODE") {
     delete userModes[id];
     delete languagePaginationMap[id];
+    delete awaitingLang[id];
     return sendModeQuickReply(id, tk);
   }
 
   if (p === "LANG_NEXT") {
     const s = languagePaginationMap[id];
-    return askForLanguage(id, s?.orig || "", tk, s.page + 1);
+    return askForLanguage(id, s.orig, tk, s.page + 1);
   }
 
   const m = p.match(/^LANG_(\d+)_(.+)$/);
-  if (m) {
+  if (m && awaitingLang[id]) {
     const s = languagePaginationMap[id];
     if (!s || s.page != +m[1]) return sendMessage(id, "⚠️ périmé", tk);
     const tr = await translateText(s.orig, m[2]);
+    delete awaitingLang[id];
     return sendMessage(id, { text: tr, quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }] }, tk);
   }
 };
 
 const handleTextMessage = async (evt, tk) => {
-  const id = evt.sender.id;
-  const txt = evt.message.text;
+  const id = evt.sender.id, txt = evt.message.text;
+  console.log("User mode:", userModes[id]);
   if (!userModes[id]) return sendModeQuickReply(id, tk);
 
-  if (userModes[id] === "translate") return await askForLanguage(id, txt, tk, 0);
-  if (userModes[id] === "chat") return chatWithAI(txt, id, tk);
+  if (userModes[id] === "translate") {
+    return askForLanguage(id, txt, tk, 0);
+  }
+
+  if (userModes[id] === "chat") {
+    return chatWithAI(txt, id, tk);
+  }
 
   if (userModes[id] === "image") {
     try {
-      const url = `https://kaiz-apis.gleeze.com/api/fluxwebui?prompt=${encodeURIComponent(txt)}&ratio=1:1&apikey=dd7096b0-3ac8-45ed-ad23-4669d15337f0`;
-      await axios.get(url);
+      const url = `https://kaiz-apis.gleeze.com/api/fluxwebui?prompt=${encodeURIComponent(txt)}&ratio=1:1&apikey=demo`;
       return sendMessage(id, {
         attachment: { type: "image", payload: { url, is_reusable: true } },
         quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }]
       }, tk);
     } catch {
-      return sendMessage(id, "❌ Erreur image.", tk);
+      return sendMessage(id, "❌ Erreur image", tk);
     }
   }
 };
 
+const handleMessengerEvent = async (evt, tk) => {
+  if (!evt.sender?.id) return;
+  const id = evt.sender.id;
+
+  if (evt.postback) {
+    if (evt.postback.payload === "BYSOMBY") {
+      await sendMessage(id, "👋 Bienvenue !", tk);
+      return sendModeQuickReply(id, tk);
+    }
+  }
+
+  if (evt.message?.quick_reply) return handleQuickReply(evt, tk);
+  if (evt.message?.text) return handleTextMessage(evt, tk);
+};
+
 app.use(bodyParser.json());
+
+app.get('/webhook', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  if (mode === 'subscribe' && token === 'somby') {
+    console.log("✅ Webhook verified");
+    return res.status(200).send(challenge);
+  }
+  res.sendStatus(403);
+});
 
 app.post('/webhook', async (req, res) => {
   const body = req.body;
@@ -188,31 +258,15 @@ app.post('/webhook', async (req, res) => {
       const pageID = entry.id;
       const token = pageTokenMap[pageID];
       if (!token) continue;
-
       if (entry.messaging) {
         for (const evt of entry.messaging) {
-          if (evt.postback?.payload === "BYSOMBY") {
-            const id = evt.sender.id;
-            await sendMessage(id, "👋 Bienvenue sur notre page ! Écrivez 'Bot' pour commencer.", token);
-            return sendModeQuickReply(id, token);
-          }
-
-          if (evt.message?.quick_reply) return handleQuickReply(evt, token);
-          if (evt.message?.text) return handleTextMessage(evt, token);
+          await handleMessengerEvent(evt, token);
         }
       }
     }
     return res.sendStatus(200);
   }
   res.sendStatus(404);
-});
-
-app.get('/webhook', (req, res) => {
-  const mode = req.query['hub.mode'];
-  const token = req.query['hub.verify_token'];
-  const challenge = req.query['hub.challenge'];
-  if (mode === 'subscribe' && token === 'somby') return res.status(200).send(challenge);
-  res.sendStatus(403);
 });
 
 (async () => {
