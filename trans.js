@@ -190,7 +190,7 @@ const handleQuickReply = async (evt, tk) => {
   const m = p.match(/^LANG_(\d+)_(.+)$/);
   if (m && awaitingLang[id]) {
     const s = languagePaginationMap[id];
-    if (!s || s.page != +m[1]) return sendMessage(id, "⚠️ périmé", tk);
+    if (!s) return sendMessage(id, "⚠️ périmé", tk);  // Removed the page number check
     const tr = await translateText(s.orig, m[2]);
     delete awaitingLang[id];
     return sendMessage(id, { text: tr, quick_replies: [{ content_type: "text", title: "🔄 Basculer", payload: "SWITCH_MODE" }] }, tk);
